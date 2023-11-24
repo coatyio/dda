@@ -24,7 +24,6 @@ concurrency:
 jobs:
   deploy:
     name: Deploy to GitHub Pages via docs branch
-    needs: version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -62,7 +61,6 @@ jobs:
   release:
     name: Create release with goreleaser
     needs:
-      - version
       - deploy
     runs-on: ubuntu-latest
     steps:
