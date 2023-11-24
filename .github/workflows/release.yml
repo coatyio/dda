@@ -35,8 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
-      - if: ${{ github.event.inputs.release-version == '' || ! startsWith(github.event.inputs.release-version, 'v') || github.event.inputs.release-notes == '' }}
-        uses: actions/github-script@v3
+      - if: ${{ github.event.inputs.release-version == '' || github.event.inputs.release-notes == '' }}
+        uses: actions/github-script@v7
         with:
           script: |
             core.setFailed('Release version and notes must not be empty. Version must be in semver format without prefix v')
