@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: © 2023 Siemens AG
+# SPDX-License-Identifier: MIT
+
+# Expects a build context with a DDA binary (set up by goreleaser)
+
+#--------------------------------------------------
+FROM    gcr.io/distroless/static-debian12
+#--------------------------------------------------
+
+# Bind-mounted volume /dda for DDA configuration file and associated assets.
+ENV     DDA_CONFIGFILE=/dda/dda.yaml
+
+USER    nonroot:nonroot
+
+COPY    dda /usr/local/bin/
+
+ENTRYPOINT   ["/usr/local/bin/dda"]
