@@ -7,14 +7,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      release-version:
-        description: "Release version (in semver format, e.g. 1.0.7)"
-        required: true
-      release-notes:
-        description: "Release notes"
-        required: true
 
 permissions:
   contents: write
@@ -30,17 +22,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  version:
-    name: Create annotated release version tag
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    steps:
-      - if: ${{ github.event.inputs.release-version == '' || github.event.inputs.release-notes == '' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.setFailed('Release version and notes must not be empty. Version must be in semver format without prefix v')
-      - run: git tag -f -a -m "${{ github.event.inputs.release-notes }}" "v${{ github.event.inputs.release-version }}"
   deploy:
     name: Deploy to GitHub Pages via docs branch
     needs: version
