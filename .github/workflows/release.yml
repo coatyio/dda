@@ -1,0 +1,109 @@
+# SPDX-FileCopyrightText: © 2023 Siemens AG
+# SPDX-License-Identifier: MIT
+
+name: Create release on pushed version tag or interactively
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release-version:
+        description: "Release version (in semver format, e.g. 1.0.7)"
+        required: true
+      release-notes:
+        description: "Release notes"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run
+# in-progress and latest queued. However, do NOT cancel in-progress runs as we
+# want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: Create annotated release version tag
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - if: ${{ github.event.inputs.release-version == '' || startsWith(github.event.inputs.release-version, 'v') || github.event.inputs.release-notes == '' }}
+        uses: actions/github-script@v3
+        with:
+          script: |
+            core.setFailed('Release version and notes must not be empty. Version must be in semver format without prefix v')
+      - run: git tag -f -a -m "${{ github.event.inputs.release-notes" }} "v${{ github.event.inputs.release-version }}"
+  deploy:
+    name: Deploy to GitHub Pages via docs branch
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Test Coverage
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          task install
+          task lint
+          task cover
+          cp -r docs/. coverage
+      - name: Generate Coverage Badge
+        run: |
+          apt update
+          apt install bc
+          set -x
+          total=`go tool cover -func coverage/coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+'`
+          if (( $(echo "$total <= 50" | bc -l) )) ; then
+            COLOR=red
+          elif (( $(echo "$total > 80" | bc -l) )); then
+            COLOR=green
+          else
+            COLOR=orange
+          fi
+          curl "https://img.shields.io/badge/coverage-$total%25-$COLOR" > coverage/coverage-badge.svg
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: docs
+          folder: coverage
+  release:
+    name: Create release with goreleaser
+    needs:
+      - version
+      - deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          # See https://goreleaser.com/ci/actions/#workflow
+          fetch-depth: 0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Run goreleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

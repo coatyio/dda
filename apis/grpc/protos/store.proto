@@ -1,0 +1,12 @@
+// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Service definition of DDA local storage API.
+
+syntax = "proto3";
+
+package dda.store.v1;
+
+option java_package = "io.dda.store.v1";
+option java_multiple_files = true;
+option java_outer_classname = "DdaStoreProto";
