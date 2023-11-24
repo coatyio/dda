@@ -696,21 +696,21 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) {
 	switch levelPattern {
 	case levelEvent:
 		event := api.Event{
-			Type:   typeName,
-			Id:     id,
-			Source: source,
-			Time:   p.Properties.User.Get(userPropTime),
-			Data:   p.Payload,
+			Type:            typeName,
+			Id:              id,
+			Source:          source,
+			Time:            p.Properties.User.Get(userPropTime),
+			Data:            p.Payload,
 			DataContentType: p.Properties.User.Get(userPropDataContentType),
 		}
 		b.eventRouter.Dispatch(routeFilter, event)
 	case levelAction:
 		actionCb := api.ActionWithCallback{
 			Action: api.Action{
-				Type:   typeName,
-				Id:     id,
-				Source: source,
-				Params: p.Payload,
+				Type:            typeName,
+				Id:              id,
+				Source:          source,
+				Params:          p.Payload,
 				DataContentType: p.Properties.User.Get(userPropDataContentType),
 			},
 			Callback: func(result api.ActionResult) error {
@@ -725,10 +725,10 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) {
 			return
 		}
 		result := api.ActionResult{
-			Context:        p.Properties.User.Get(userPropContext),
-			Data:           p.Payload,
+			Context:         p.Properties.User.Get(userPropContext),
+			Data:            p.Payload,
 			DataContentType: p.Properties.User.Get(userPropDataContentType),
-			SequenceNumber: seqNo,
+			SequenceNumber:  seqNo,
 		}
 		routeFilter.CorrelationId = string(p.Properties.CorrelationData)
 		b.actionResultRouter.Dispatch(routeFilter, result)

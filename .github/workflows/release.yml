@@ -35,12 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
-      - if: ${{ github.event.inputs.release-version == '' || startsWith(github.event.inputs.release-version, 'v') || github.event.inputs.release-notes == '' }}
+      - if: ${{ github.event.inputs.release-version == '' || ! startsWith(github.event.inputs.release-version, 'v') || github.event.inputs.release-notes == '' }}
         uses: actions/github-script@v3
         with:
           script: |
             core.setFailed('Release version and notes must not be empty. Version must be in semver format without prefix v')
-      - run: git tag -f -a -m "${{ github.event.inputs.release-notes" }} "v${{ github.event.inputs.release-version }}"
+      - run: git tag -f -a -m "${{ github.event.inputs.release-notes }}" "v${{ github.event.inputs.release-version }}"
   deploy:
     name: Deploy to GitHub Pages via docs branch
     needs: version

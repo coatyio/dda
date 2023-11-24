@@ -124,8 +124,6 @@ tasks:
 
   release:
     desc: Trigger GitHub Actions release workflow by pushing current branch including version tag
-    # Remove trailing character from read input on Windows due to
-    # realization in Taskfile shell interpreter mvdan.cc/sh/v3.
     cmd: |
       test -n "$(git status --porcelain)" && echo "git is in a dirty state: commit uncommitted and unstaged changes first" && exit;
       echo "Enter release version (in semver format, e.g. 1.0.7):";
@@ -139,5 +137,5 @@ tasks:
       echo "Creating version tag v${REL_VERSION}";
       git tag -f -a -m "${REL_NOTES}" "v${REL_VERSION}";
       echo "Pushing current branch with tags";
-      git push -u --follow-tags;
+      git push --follow-tags;
     silent: false
