@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: © 2023 Siemens AG
 # SPDX-License-Identifier: MIT
 
-name: Create release on pushed version tag or interactively
+name: Create release on pushed version tag
 
 on:
   push:
