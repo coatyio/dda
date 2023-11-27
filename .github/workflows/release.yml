@@ -40,10 +40,12 @@ jobs:
           mkdir coverage
           task cover
           cp -r docs/. coverage
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: bc
+          version: 1.0
       - name: Generate Coverage Badge
         run: |
-          apt update
-          apt install bc
           set -x
           total=`go tool cover -func coverage/coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+'`
           if (( $(echo "$total <= 50" | bc -l) )) ; then
