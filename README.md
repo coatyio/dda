@@ -26,9 +26,10 @@ multi-agent system that enables unified and universal data-centric communication
 and collaboration in distributed and decentralized applications. Its main goal
 is to remove the inherent complexity in developing communication technologies
 for distributed systems by exposing _Data-centric Communication as a Service_ to
-application developers without requiring in-depth knowledge of messaging
-protocols and communication networks. DDA is designed for universal data
-exchange, enabling human-to-human, machine-to-machine, or hybrid communication.
+application developers in the form of a middleware without requiring in-depth
+knowledge of messaging protocols and communication networks. DDA is designed for
+universal data exchange, enabling human-to-human, machine-to-machine, or hybrid
+communication.
 
 DDA follows the _Sidecar_/_Sidekick_ decomposition design pattern, where each
 DDA sidecar is attached to a primary application component typically co-located
