@@ -283,8 +283,7 @@ For a list of available tasks, run `task`.
 
 To release a new DDA version run `task release`. It triggers a GitHub Actions
 release workflow by pushing the current branch including a version tag with
-annotated release notes read from the console. You may also trigger a release by
-clicking the "Run workflow" button on the Actions tab in the GitHub repo.
+annotated release notes read from the console.
 
 For testing purposes run `task release-dry` to create a local release for which
 release assets are deployed in the `dist` folder and Docker images are pushed
