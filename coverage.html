@@ -1,0 +1,2654 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>grpc: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/coatyio/dda/apis/grpc/grpc.go (80.9%)</option>
+				
+				<option value="file1">github.com/coatyio/dda/apis/grpc/grpcweb.go (92.5%)</option>
+				
+				<option value="file2">github.com/coatyio/dda/config/config.go (95.0%)</option>
+				
+				<option value="file3">github.com/coatyio/dda/dda/dda.go (100.0%)</option>
+				
+				<option value="file4">github.com/coatyio/dda/dda/dda_internal.go (100.0%)</option>
+				
+				<option value="file5">github.com/coatyio/dda/services/com/api/api.go (100.0%)</option>
+				
+				<option value="file6">github.com/coatyio/dda/services/com/api/router.go (97.4%)</option>
+				
+				<option value="file7">github.com/coatyio/dda/services/com/com.go (100.0%)</option>
+				
+				<option value="file8">github.com/coatyio/dda/services/com/mqtt5/mqtt5.go (90.3%)</option>
+				
+				<option value="file9">github.com/coatyio/dda/services/services.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package grpc provides a gRPC server that exposes the DDA peripheral services
+// to gRPC and gRPC-Web clients.
+package grpc
+
+import (
+        "context"
+        "net"
+        "os"
+        "strings"
+        "sync"
+
+        "github.com/coatyio/dda/apis"
+        stubs "github.com/coatyio/dda/apis/grpc/stubs/golang"
+        "github.com/coatyio/dda/config"
+        "github.com/coatyio/dda/plog"
+        "github.com/coatyio/dda/services"
+        comapi "github.com/coatyio/dda/services/com/api"
+        "github.com/google/uuid"
+        rpc "google.golang.org/grpc"
+        "google.golang.org/grpc/codes"
+        "google.golang.org/grpc/credentials"
+        "google.golang.org/grpc/keepalive"
+        "google.golang.org/grpc/metadata"
+        "google.golang.org/grpc/status"
+)
+
+var metadata_dda_suback = metadata.Pairs("dda-suback", "OK")
+
+// grpcServer realizes a gRPC server that exposes the peripheral DDA services to
+// gRPC and gRPC-Web clients. grpcServer implements the apis.ApiServer interface
+// and all the ServiceServer interfaces of the generated gRPC stubs.
+type grpcServer struct {
+        stubs.UnimplementedComServiceServer
+        comApi comapi.Api
+        mu     sync.RWMutex // protects following fields
+        srv    *rpc.Server
+        grpcWebServer
+        actionCallbacks map[string]comapi.ActionCallback
+        queryCallbacks  map[string]comapi.QueryCallback
+}
+
+// New returns an apis.ApiServer interface that implements an uninitialized gRPC
+// server exposing the peripheral DDA services to gRPC and gRPC-Web clients. To
+// start the returned server, invoke Open with a gRPC-enabled DDA configuration.
+func New(com comapi.Api) apis.ApiServer <span class="cov6" title="8">{
+        return &amp;grpcServer{
+                comApi:          com,
+                actionCallbacks: make(map[string]comapi.ActionCallback),
+                queryCallbacks:  make(map[string]comapi.QueryCallback),
+        }
+}</span>
+
+// Open creates a ready-to-run gRPC server with the configured server
+// credentials that accepts client requests over gRPC/gRPC-Web on the configured
+// addresses. In case of gRPC connections supported protocols include TCP and
+// Unix domain sockets.
+func (s *grpcServer) Open(cfg *config.Config) error <span class="cov6" title="8">{
+        address := cfg.Apis.Grpc.Address
+
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        if s.srv == nil </span><span class="cov6" title="8">{
+
+                // Set up gRPC server.
+
+                srvOpts := []rpc.ServerOption{}
+                if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov5" title="5">{
+                        creds, err := credentials.NewServerTLSFromFile(cfg.Apis.Cert, cfg.Apis.Key)
+                        if err != nil </span><span class="cov2" title="2">{
+                                return err
+                        }</span>
+                        <span class="cov3" title="3">srvOpts = append(srvOpts, rpc.Creds(creds))</span>
+                }
+
+                // Use configurable values for Keepalive Server Parameters.
+                //
+                // https://pkg.go.dev/google.golang.org/grpc/keepalive
+                // https://grpc.io/docs/guides/keepalive/
+                // https://github.com/grpc/grpc-go/blob/v1.53.0/Documentation/keepalive.md
+                <span class="cov5" title="6">srvOpts = append(srvOpts, rpc.KeepaliveParams(keepalive.ServerParameters{
+                        Time: cfg.Apis.Grpc.Keepalive,
+                }))
+
+                s.srv = rpc.NewServer(srvOpts...)
+                stubs.RegisterComServiceServer(s.srv, s)
+
+                plog.Printf("Open gRPC server listening on address %s...\n", address)
+
+                protocol := "tcp"
+                if sockfile, isUnix := strings.CutPrefix(address, "unix:"); isUnix </span><span class="cov0" title="0">{
+                        protocol = "unix"
+                        address = sockfile
+
+                        // Remove existing socket file to clean up in crash situations where
+                        // the listener is not being closed.
+                        if err := os.Remove(sockfile); err != nil &amp;&amp; !os.IsNotExist(err) </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                }
+
+                <span class="cov5" title="6">lis, err := net.Listen(protocol, address)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                <span class="cov5" title="6">go s.srv.Serve(lis)
+
+                return s.openWebServer(s.srv, cfg)</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Close stops the gRPC server, canceling all active RPCs on the server side,
+// and closing all open connections. Pending RPCs on the client side will get
+// notified by connection errors.
+func (s *grpcServer) Close() <span class="cov5" title="6">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        if s.srv != nil </span><span class="cov5" title="6">{
+                s.srv.Stop()
+                s.srv = nil
+                s.closeWebServer()
+                for k := range s.actionCallbacks </span><span class="cov2" title="2">{
+                        delete(s.actionCallbacks, k)
+                }</span>
+                <span class="cov5" title="6">for k := range s.queryCallbacks </span><span class="cov2" title="2">{
+                        delete(s.queryCallbacks, k)
+                }</span>
+                <span class="cov5" title="6">plog.Println("Closed gRPC server")</span>
+        }
+}
+
+func (s *grpcServer) PublishEvent(ctx context.Context, event *stubs.Event) (*stubs.Ack, error) <span class="cov7" title="10">{
+        if err := s.comApi.PublishEvent(comapi.Event{
+                Type:            event.GetType(),
+                Id:              event.GetId(),
+                Source:          event.GetSource(),
+                Time:            event.GetTime(),
+                Data:            event.GetData(),
+                DataContentType: event.GetDataContentType(),
+        }); err != nil </span><span class="cov6" title="8">{
+                err = status.Errorf(s.codeByError(err), "failed publishing Event: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+
+        <span class="cov2" title="2">return &amp;stubs.Ack{}, nil</span>
+}
+
+func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeEventServer) error <span class="cov6" title="8">{
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        evts, err := s.comApi.SubscribeEvent(ctx, comapi.SubscriptionFilter{
+                Type:  filter.GetType(),
+                Share: filter.GetShare(),
+        })
+        if err != nil </span><span class="cov2" title="2">{
+                err = status.Errorf(s.codeByError(err), "failed subscribing Event: %v", err)
+                plog.Println(err)
+                return err
+        }</span>
+
+        // Send header with custom metadata to signal acknowledgment of the DDA
+        // subscription. The gRPC client should await this acknowledgment to prevent
+        // race conditions with subsequent related publications that may be
+        // delivered and responded before this subscription is being fully
+        // established by the pub-sub server.
+        <span class="cov5" title="6">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+                plog.Println(err)
+                return err
+        }</span>
+
+        <span class="cov5" title="6">for </span><span class="cov7" title="12">{
+                select </span>{
+                case evt, ok := &lt;-evts:<span class="cov5" title="6">
+                        if !ok </span><span class="cov0" title="0">{
+                                // End stream if channel has been closed by communication service.
+                                return nil
+                        }</span>
+                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.Event{
+                                Type:            evt.Type,
+                                Id:              evt.Id,
+                                Source:          evt.Source,
+                                Time:            evt.Time,
+                                Data:            evt.Data,
+                                DataContentType: evt.DataContentType,
+                        }); err != nil </span><span class="cov0" title="0">{
+                                // Do not return err, but keep stream alive for further transmissions.
+                                plog.Println(err)
+                        }</span>
+                case &lt;-stream.Context().Done():<span class="cov5" title="6"> // server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                }
+        }
+}
+
+func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService_PublishActionServer) error <span class="cov7" title="12">{
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        results, err := s.comApi.PublishAction(ctx, comapi.Action{
+                Type:            action.GetType(),
+                Id:              action.GetId(),
+                Source:          action.GetSource(),
+                Params:          action.GetParams(),
+                DataContentType: action.GetDataContentType(),
+        })
+        if err != nil </span><span class="cov6" title="8">{
+                err = status.Errorf(s.codeByError(err), "failed publishing Action: %v", err)
+                plog.Println(err)
+                return err
+        }</span>
+
+        // Send header with custom metadata to signal acknowledgment of the DDA
+        // response subscription and the publication. The gRPC client may await this
+        // acknowledgment to prevent race conditions with subsequent related
+        // publications that may be delivered and responded on the response
+        // subscription before it is being fully established by the pub-sub server.
+        <span class="cov4" title="4">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+                plog.Println(err)
+                return err
+        }</span>
+
+        <span class="cov4" title="4">for </span><span class="cov7" title="10">{
+                select </span>{
+                case res, ok := &lt;-results:<span class="cov5" title="6">
+                        if !ok </span><span class="cov0" title="0">{
+                                // End stream if channel has been closed by communication service.
+                                return nil
+                        }</span>
+                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.ActionResult{
+                                Context:         res.Context,
+                                Data:            res.Data,
+                                DataContentType: res.DataContentType,
+                                SequenceNumber:  res.SequenceNumber,
+                        }); err != nil </span><span class="cov0" title="0">{
+                                // Do not return err, but keep stream alive for further transmissions.
+                                plog.Println(err)
+                        }</span>
+                case &lt;-stream.Context().Done():<span class="cov4" title="4"> // server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                }
+        }
+}
+
+func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeActionServer) error <span class="cov5" title="6">{
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        acts, err := s.comApi.SubscribeAction(ctx, comapi.SubscriptionFilter{
+                Type:  filter.GetType(),
+                Share: filter.GetShare(),
+        })
+        if err != nil </span><span class="cov2" title="2">{
+                err = status.Errorf(s.codeByError(err), "failed subscribing Action: %v", err)
+                plog.Println(err)
+                return err
+        }</span>
+
+        // Send header with custom metadata to signal acknowledgment of the DDA
+        // subscription. The gRPC client should await this acknowledgment to prevent
+        // race conditions with subsequent related publications that may be
+        // delivered and responded before this subscription is being fully
+        // established by the pub-sub server.
+        <span class="cov4" title="4">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+                plog.Println(err)
+                return err
+        }</span>
+
+        <span class="cov4" title="4">for </span><span class="cov6" title="8">{
+                select </span>{
+                case act, ok := &lt;-acts:<span class="cov4" title="4">
+                        if !ok </span><span class="cov0" title="0">{
+                                // End stream if channel has been closed by communication service.
+                                return nil
+                        }</span>
+                        <span class="cov4" title="4">cid := uuid.NewString()
+                        s.mu.Lock()
+                        s.actionCallbacks[cid] = act.Callback
+                        s.mu.Unlock()
+                        if err := stream.Send(&amp;stubs.ActionCorrelated{
+                                Action: &amp;stubs.Action{
+                                        Type:            act.Type,
+                                        Id:              act.Id,
+                                        Source:          act.Source,
+                                        Params:          act.Params,
+                                        DataContentType: act.DataContentType,
+                                },
+                                CorrelationId: cid,
+                        }); err != nil </span><span class="cov0" title="0">{
+                                // Do not return err, but keep stream alive for further transmissions.
+                                plog.Println(err)
+                        }</span>
+                case &lt;-stream.Context().Done():<span class="cov4" title="4"> // Server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                }
+        }
+}
+
+func (s *grpcServer) PublishActionResult(ctx context.Context, result *stubs.ActionResultCorrelated) (*stubs.Ack, error) <span class="cov6" title="8">{
+        s.mu.RLock()
+        cb, ok := s.actionCallbacks[result.GetCorrelationId()]
+        s.mu.RUnlock()
+        if !ok </span><span class="cov2" title="2">{
+                err := status.Errorf(codes.InvalidArgument, "failed publishing ActionResult: unknown correlation id")
+                plog.Println(err)
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="6">res := result.GetResult()
+        if res.GetSequenceNumber() &lt;= 0 </span><span class="cov2" title="2">{
+                s.mu.Lock()
+                delete(s.actionCallbacks, result.GetCorrelationId()) // no more results will follow
+                s.mu.Unlock()
+        }</span>
+
+        <span class="cov5" title="6">if err := cb(comapi.ActionResult{
+                Context:         res.GetContext(),
+                Data:            res.GetData(),
+                DataContentType: res.GetDataContentType(),
+                SequenceNumber:  res.GetSequenceNumber(),
+        }); err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed publishing ActionResult: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="6">return &amp;stubs.Ack{}, nil</span>
+}
+
+func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_PublishQueryServer) error <span class="cov7" title="12">{
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        results, err := s.comApi.PublishQuery(ctx, comapi.Query{
+                Type:            query.GetType(),
+                Id:              query.GetId(),
+                Source:          query.GetSource(),
+                Data:            query.GetData(),
+                DataContentType: query.GetDataContentType(),
+        })
+        if err != nil </span><span class="cov6" title="8">{
+                err = status.Errorf(s.codeByError(err), "failed publishing Query: %v", err)
+                plog.Println(err)
+                return err
+        }</span>
+
+        // Send header with custom metadata to signal acknowledgment of the DDA
+        // response subscription and the publication. The gRPC client may await this
+        // acknowledgment to prevent race conditions with subsequent related
+        // publications that may be delivered and responded on the response
+        // subscription before it is being fully established by the pub-sub server.
+        <span class="cov4" title="4">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+                plog.Println(err)
+                return err
+        }</span>
+
+        <span class="cov4" title="4">for </span><span class="cov7" title="10">{
+                select </span>{
+                case res, ok := &lt;-results:<span class="cov5" title="6">
+                        if !ok </span><span class="cov0" title="0">{
+                                // End stream if channel has been closed by communication service.
+                                return nil
+                        }</span>
+                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.QueryResult{
+                                Context:         res.Context,
+                                Data:            res.Data,
+                                DataContentType: res.DataContentType,
+                                SequenceNumber:  res.SequenceNumber,
+                        }); err != nil </span><span class="cov0" title="0">{
+                                // Do not return err, but keep stream alive for further transmissions.
+                                plog.Println(err)
+                        }</span>
+                case &lt;-stream.Context().Done():<span class="cov4" title="4"> // server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                }
+        }
+}
+
+func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeQueryServer) error <span class="cov5" title="6">{
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        qrys, err := s.comApi.SubscribeQuery(ctx, comapi.SubscriptionFilter{
+                Type:  filter.GetType(),
+                Share: filter.GetShare(),
+        })
+        if err != nil </span><span class="cov2" title="2">{
+                err = status.Errorf(s.codeByError(err), "failed subscribing Query: %v", err)
+                plog.Println(err)
+                return err
+        }</span>
+
+        // Send header with custom metadata to signal acknowledgment of the DDA
+        // subscription. The gRPC client should await this acknowledgment to prevent
+        // race conditions with subsequent code that indirectly triggers a remote
+        // publication on the subscription which can be lost if the subscription has
+        // not yet been fully established by the pub-sub infrastructure.
+        <span class="cov4" title="4">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+                plog.Println(err)
+                return err
+        }</span>
+
+        <span class="cov4" title="4">for </span><span class="cov6" title="8">{
+                select </span>{
+                case qry, ok := &lt;-qrys:<span class="cov4" title="4">
+                        if !ok </span><span class="cov0" title="0">{
+                                // End stream if channel has been closed by communication service.
+                                return nil
+                        }</span>
+                        <span class="cov4" title="4">cid := uuid.NewString()
+                        s.mu.Lock()
+                        s.queryCallbacks[cid] = qry.Callback
+                        s.mu.Unlock()
+                        if err := stream.Send(&amp;stubs.QueryCorrelated{
+                                Query: &amp;stubs.Query{
+                                        Type:            qry.Type,
+                                        Id:              qry.Id,
+                                        Source:          qry.Source,
+                                        Data:            qry.Data,
+                                        DataContentType: qry.DataContentType,
+                                },
+                                CorrelationId: cid,
+                        }); err != nil </span><span class="cov0" title="0">{
+                                // Do not return err, but keep stream alive for further transmissions.
+                                plog.Println(err)
+                        }</span>
+                case &lt;-stream.Context().Done():<span class="cov4" title="4"> // server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                }
+        }
+}
+
+func (s *grpcServer) PublishQueryResult(ctx context.Context, result *stubs.QueryResultCorrelated) (*stubs.Ack, error) <span class="cov6" title="8">{
+        s.mu.RLock()
+        cb, ok := s.queryCallbacks[result.GetCorrelationId()]
+        s.mu.RUnlock()
+        if !ok </span><span class="cov2" title="2">{
+                err := status.Errorf(codes.InvalidArgument, "failed publishing QueryResult: unknown correlation id")
+                plog.Println(err)
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="6">res := result.GetResult()
+        if res.GetSequenceNumber() &lt;= 0 </span><span class="cov2" title="2">{
+                s.mu.Lock()
+                delete(s.queryCallbacks, result.GetCorrelationId()) // no more results will follow
+                s.mu.Unlock()
+        }</span>
+
+        <span class="cov5" title="6">if err := cb(comapi.QueryResult{
+                Context:         res.GetContext(),
+                Data:            res.GetData(),
+                DataContentType: res.GetDataContentType(),
+                SequenceNumber:  res.GetSequenceNumber(),
+        }); err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed publishing QueryResult: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="6">return &amp;stubs.Ack{}, nil</span>
+}
+
+func (s *grpcServer) codeByError(err error) codes.Code <span class="cov10" title="30">{
+        if services.IsRetryable(err) </span><span class="cov0" title="0">{
+                return codes.Unavailable
+        }</span> else<span class="cov10" title="30"> {
+                return codes.InvalidArgument
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+package grpc
+
+import (
+        "crypto/tls"
+        "fmt"
+        "net/http"
+
+        "github.com/coatyio/dda/config"
+        "github.com/coatyio/dda/plog"
+        rpcweb "github.com/improbable-eng/grpc-web/go/grpcweb"
+        rpc "google.golang.org/grpc"
+)
+
+// grpcWebServer realizes a gRCP-Web HTTP proxy server that routes incoming
+// gRPC-Web requests to the DDA gRPC server.
+type grpcWebServer struct {
+        httpSrv     *http.Server
+        wrappedGrpc *rpcweb.WrappedGrpcServer
+}
+
+func (s *grpcWebServer) openWebServer(rs *rpc.Server, cfg *config.Config) error <span class="cov8" title="7">{
+        if cfg.Apis.GrpcWeb.Disabled </span><span class="cov1" title="1">{
+                return nil
+        }</span>
+
+        // Set up gRPC-Web http server that wraps the gRPC server.
+
+        <span class="cov8" title="6">options := []rpcweb.Option{}
+        originFunc := s.makeHttpOriginFunc(cfg.Apis.GrpcWeb.AccessControlAllowOrigin)
+        if originFunc != nil </span><span class="cov8" title="6">{
+                options = append(options, rpcweb.WithOriginFunc(originFunc))
+        }</span>
+
+        <span class="cov8" title="6">s.wrappedGrpc = rpcweb.WrapServer(rs, options...)
+
+        var tlsConfig *tls.Config
+        if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov5" title="3">{
+                cert, err := tls.LoadX509KeyPair(cfg.Apis.Cert, cfg.Apis.Key)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid or missing PEM file in DDA configuration under 'apis.cert/.key' : %w", err)
+                }</span>
+                <span class="cov5" title="3">tlsConfig = &amp;tls.Config{
+                        MinVersion:   tls.VersionTLS12,
+                        Certificates: []tls.Certificate{cert},
+                        ClientAuth:   tls.NoClientCert,
+                }</span>
+        }
+        <span class="cov8" title="6">webAddress := cfg.Apis.GrpcWeb.Address
+        s.httpSrv = &amp;http.Server{
+                Addr:              webAddress,
+                ErrorLog:          plog.WithPrefix("http.Server "),
+                TLSConfig:         tlsConfig,
+                ReadHeaderTimeout: 0, // no timeout to enable long-lived responses
+                ReadTimeout:       0, // no timeout to enable long-lived responses
+                WriteTimeout:      0, // no timeout to enable long-lived responses
+                IdleTimeout:       0, // no timeout waiting for next request with keep-live
+        }
+
+        s.httpSrv.Handler = http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) </span><span class="cov0" title="0">{
+                // plog.Printf("gRPC-Web ServeHTTP %+v\n", req)
+                s.wrappedGrpc.ServeHTTP(resp, req)
+        }</span>)
+
+        <span class="cov8" title="6">plog.Printf("Open gRPC-Web http server listening on address %s...\n", webAddress)
+
+        go func() </span><span class="cov8" title="6">{
+                if tlsConfig == nil </span><span class="cov5" title="3">{
+                        if err := s.httpSrv.ListenAndServe(); err != http.ErrServerClosed </span><span class="cov5" title="3">{
+                                plog.Printf("Unexpected gRPC-Web http server error: %v", err)
+                        }</span>
+                } else<span class="cov5" title="3"> {
+                        if err := s.httpSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed </span><span class="cov5" title="3">{
+                                plog.Printf("Unexpected gRPC-Web https server error: %v", err)
+                        }</span>
+                }
+        }()
+
+        <span class="cov8" title="6">return nil</span>
+}
+
+func (s *grpcWebServer) closeWebServer() <span class="cov8" title="6">{
+        s.wrappedGrpc = nil
+        if s.httpSrv != nil </span><span class="cov8" title="6">{
+                if err := s.httpSrv.Close(); err != nil </span><span class="cov0" title="0">{
+                        plog.Printf("Closed gRPC-Web server with error: %v", err)
+                }</span> else<span class="cov8" title="6"> {
+                        plog.Println("Closed gRPC-Web server")
+                }</span>
+                <span class="cov8" title="6">s.httpSrv = nil</span>
+        }
+}
+
+func (s *grpcWebServer) makeHttpOriginFunc(origins []string) func(string) bool <span class="cov10" title="9">{
+        if len(origins) == 0 </span><span class="cov9" title="8">{
+                return func(origin string) bool </span><span class="cov7" title="5">{
+                        return true // all origins are allowed
+                }</span>
+        }
+        <span class="cov1" title="1">originSet := make(map[string]struct{}, len(origins))
+        for _, origin := range origins </span><span class="cov3" title="2">{
+                originSet[origin] = struct{}{}
+        }</span>
+        <span class="cov1" title="1">return func(origin string) bool </span><span class="cov8" title="7">{
+                _, ok := originSet[origin]
+                return ok
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package config defines DDA configuration types to be used programmatically or
+// within a DDA configuration file in YAML format.
+//
+// Note that the fields of all configuration types are not documented in code
+// but solely in the default DDA YAML configuration file located in the project
+// root folder (single source of truth).
+package config
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+        "regexp"
+        "strings"
+        "time"
+
+        "github.com/google/uuid"
+        "gopkg.in/yaml.v3"
+)
+
+const configSchemaVersion = "1"
+
+var compliesWithNamingConvention = regexp.MustCompile("^[-_.0-9a-zA-Z]+$").MatchString
+
+// Asserts that the given name conforms to the DDA naming convention for
+// configuration items used as pub-sub topic fields. Such a name must be
+// non-empty and only contain ASCII digits 0-9, lowercase letters a-z, uppercase
+// letters A-Z, dot (.), hyphen (-), or underscore (_). Returns an error if
+// assertion fails; nil otherwise.
+//
+// This function is intended to be used by communication binding
+// implementations.
+func ValidateName(name string, context ...string) error <span class="cov10" title="457">{
+        if !compliesWithNamingConvention(name) </span><span class="cov8" title="137">{
+                return fmt.Errorf(`invalid %s "%s": must only contain characters 0-9, a-z, A-Z, dot, hyphen, or underscore`, strings.Join(context, " "), name)
+        }</span>
+        <span class="cov9" title="320">return nil</span>
+}
+
+// Asserts that the given value is a non-empty string. Returns an error if
+// assertion fails; nil otherwise. The given context strings are embedded into
+// the error.
+func ValidateNonEmpty(value string, context ...string) error <span class="cov8" title="195">{
+        if value == "" </span><span class="cov6" title="43">{
+                return fmt.Errorf(`invalid %s "%s": must not be empty`, strings.Join(context, " "), value)
+        }</span>
+        <span class="cov8" title="152">return nil</span>
+}
+
+// A Config represents the complete hierarchy of configuration parameters for
+// all DDA services as nested struct types that map to the underlying YAML
+// configuration schema. It should be created with New() or ReadConfig() to
+// ensure all fields are correctly populated.
+type Config struct {
+        Version  string
+        Identity Identity
+        Cluster  string
+        Apis     ConfigApis
+        Services ConfigServices
+}
+
+// Verify asserts that the configuration version matches the supported
+// configuration schema and that the Cluster name is valid. Returns an error
+// otherwise.
+func (c *Config) Verify() error <span class="cov7" title="70">{
+        if c.Version != configSchemaVersion </span><span class="cov3" title="6">{
+                return fmt.Errorf(`incompatible configuration version "%s", requiring version "%s"`, c.Version, configSchemaVersion)
+        }</span>
+
+        <span class="cov7" title="64">if err := ValidateName(c.Cluster, "configuration cluster"); err != nil </span><span class="cov3" title="5">{
+                return err
+        }</span>
+
+        <span class="cov6" title="59">return nil</span>
+}
+
+// An Identity represents the unique identity of a DDA.
+type Identity struct {
+        Name string
+        Id   string
+}
+
+// ConfigApis comprises server-side configuration options of all public DDA
+// Client APIs.
+type ConfigApis struct {
+        Grpc    ConfigApi
+        GrpcWeb ConfigWebApi `yaml:"grpc-web"`
+        Cert    string
+        Key     string
+}
+
+// A ConfigApi comprises server-side configuration options of a specific public
+// DDA Client API.
+type ConfigApi struct {
+        Address   string
+        Disabled  bool
+        Keepalive time.Duration
+}
+
+// A ConfigApi used by Web HTTP clients.
+type ConfigWebApi struct {
+        Address                  string
+        Disabled                 bool
+        AccessControlAllowOrigin []string `yaml:"access-control-allow-origin"`
+}
+
+// ConfigServices provides configuration options for all peripheral DDA
+// services.
+type ConfigServices struct {
+        Com ConfigComService
+        // TODO State ConfigStateService
+        // TODO Store ConfigStoreService
+}
+
+// ConfigComService defines configuration options for a selected pub-sub
+// messaging protocol.
+type ConfigComService struct {
+        Protocol string
+        Url      string
+        Auth     AuthOptions
+        Opts     map[string]any
+}
+
+// AuthOptions defines authentication options for a selected pub-sub
+// messaging protocol.
+type AuthOptions struct {
+        Method   string
+        Cert     string
+        Key      string
+        Verify   bool
+        Username string
+        Password string
+}
+
+// ReadConfig reads and parses the given DDA configuration file in YAML format
+// and returns a *Config on success or an error, otherwise.
+func ReadConfig(file string) (*Config, error) <span class="cov2" title="3">{
+        c, err := os.ReadFile(filepath.Clean(file))
+        if err != nil </span><span class="cov2" title="2">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">config := New()
+        err = yaml.Unmarshal(c, config)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">return config, nil</span>
+}
+
+// New creates a Config struct pre-filled with default values as specified in
+// the YAML DDA configuration format.
+func New() *Config <span class="cov6" title="31">{
+        return &amp;Config{
+                Version: configSchemaVersion,
+                Identity: Identity{
+                        Name: "DDA",
+                        Id:   uuid.NewString(),
+                },
+                Cluster: "dda",
+                Apis: ConfigApis{
+                        Grpc: ConfigApi{
+                                Address:   ":8900",
+                                Disabled:  false,
+                                Keepalive: 2 * time.Hour,
+                        },
+                        GrpcWeb: ConfigWebApi{
+                                Address:                  ":8800",
+                                AccessControlAllowOrigin: nil,
+                                Disabled:                 false,
+                        },
+                        Cert: "",
+                        Key:  "",
+                },
+                Services: ConfigServices{
+                        Com: ConfigComService{
+                                Protocol: "mqtt5",
+                                Url:      "",
+                                Auth: AuthOptions{
+                                        Method:   "none",
+                                        Cert:     "",
+                                        Key:      "",
+                                        Verify:   true,
+                                        Username: "",
+                                        Password: "",
+                                },
+                                Opts: make(map[string]any),
+                        },
+                },
+        }
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package dda provides a ready-to-use Data Distribution Agent (DDA).
+package dda
+
+import (
+        "time"
+
+        "github.com/coatyio/dda/apis"
+        "github.com/coatyio/dda/apis/grpc"
+        "github.com/coatyio/dda/config"
+        "github.com/coatyio/dda/plog"
+        "github.com/coatyio/dda/services/com"
+        comapi "github.com/coatyio/dda/services/com/api"
+)
+
+// comApi is a non-exposed type alias for the communication API interface.
+type comApi = comapi.Api
+
+// Dda represents a Data Distribution Agent with peripheral services and public
+// client APIs. It must be created with New() to ensure that all services and
+// APIs are correctly initialized.
+type Dda struct {
+        cfg    *config.Config // agent configuration
+        comApi                // Communication API
+        // stateApi                 // State Management API
+        // storeApi                 // Local Storage API
+
+        grpcServer apis.ApiServer
+}
+
+// New creates a *Dda structure with DDA services and APIs initialized from the
+// given configuration. An error is returned if the given configuration is
+// invalid or if one of the DDA services or APIs cannot be initialized.
+//
+// To start the initialized DDA services and APIs invoke Open on the returned
+// *Dda structure.
+func New(cfg *config.Config) (*Dda, error) <span class="cov8" title="68">{
+        if err := cfg.Verify(); err != nil </span><span class="cov5" title="10">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="58">config := *cfg // copy to make it immutable inside of package
+        dda := Dda{cfg: &amp;config}
+
+        comApi, err := com.New(config.Services.Com.Protocol)
+        if err != nil </span><span class="cov4" title="5">{
+                return nil, err
+        }</span> else<span class="cov8" title="53"> {
+                dda.comApi = *comApi
+        }</span>
+
+        <span class="cov8" title="53">if !cfg.Apis.Grpc.Disabled </span><span class="cov4" title="8">{
+                dda.grpcServer = grpc.New(dda.comApi)
+        }</span>
+
+        <span class="cov8" title="53">plog.Printf("Created DDA %+v", dda.Identity())
+
+        return &amp;dda, nil</span>
+}
+
+// Identity gets the Identity of the DDA.
+func (d *Dda) Identity() config.Identity <span class="cov10" title="120">{
+        return d.cfg.Identity
+}</span>
+
+// Open starts all configured DDA services and APIs and blocks waiting for them
+// to be ready for use. An error is returned if some DDA services or APIs cannot
+// be started, or if the given timeout elapses before setup of a single service
+// or API completes. Specify a zero timeout to disable preliminary timeout
+// behavior.
+func (d *Dda) Open(timeout time.Duration) error <span class="cov8" title="48">{
+        if err := &lt;-d.comApi.Open(d.cfg, timeout); err != nil </span><span class="cov6" title="20">{
+                return err
+        }</span>
+
+        <span class="cov7" title="28">if d.grpcServer != nil </span><span class="cov4" title="8">{
+                if err := d.grpcServer.Open(d.cfg); err != nil </span><span class="cov2" title="2">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov7" title="26">plog.Printf("Opened DDA %+v", d.Identity())
+
+        return nil</span>
+}
+
+// Close synchronously shuts down all configured DDA services and APIs
+// gracefully and releases associated resources.
+func (d *Dda) Close() <span class="cov7" title="36">{
+        &lt;-d.comApi.Close()
+        // &lt;-d.StateApi.Close()
+        // &lt;-d.StoreApi.Close()
+
+        if d.grpcServer != nil </span><span class="cov4" title="6">{
+                d.grpcServer.Close()
+        }</span>
+
+        <span class="cov7" title="36">plog.Printf("Closed DDA %+v", d.Identity())</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">//go:build testing
+
+// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+package dda
+
+// This file provides getters to access non-exposed Dda fields for testing.
+
+import "github.com/coatyio/dda/services/com/api"
+
+// ComApi gets the communication API of a Dda. Accessible for testing only.
+func (d *Dda) ComApi() api.Api <span class="cov10" title="25">{
+        return d.comApi
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package api provides the communication API for data-centric message-driven
+// communication among decoupled DDAs. The communication API provides
+// data-centric communication patterns for one-way and two-way communication
+// based on the publish-subscribe messaging paradigm. The communication API is
+// implemented by communication protocol bindings that use specific underlying
+// pub-sub messaging transport protocols, like MQTT, Zenoh, Kafka, and others.
+// Structured Event, Action, and Query data is described in a common way
+// adhering closely to the CloudEvents specification.
+//
+// In addition, package api also provides common functionality to be reused by
+// communication binding implementations. For example, type Router and related
+// types may be used to manage subscription filters and to lookup associated
+// handlers.
+package api
+
+import (
+        "context"
+        "fmt"
+        "time"
+
+        "github.com/coatyio/dda/config"
+)
+
+// A Scope identifies one of the supported DDA services that uses pub-sub
+// communication. Scope is used as part of publications and corresponding
+// subscription filters to support isolated routing of service specific
+// messages.
+type Scope string
+
+const (
+        ScopeDef         Scope = ""    // Default scope (ScopeCom)
+        ScopeCom         Scope = "com" // Communication scope
+        ScopeState       Scope = "sta" // Distributed state management scope
+        ScopeStore       Scope = "sto" // Local storage scope
+        ScopeSideChannel Scope = "sdc" // Side channel scope
+)
+
+// ToScope converts a Scope string to a Scope.
+func ToScope(scope string) (Scope, error) <span class="cov10" title="132">{
+        switch scope </span>{
+        case string(ScopeDef):<span class="cov1" title="1">
+                return ScopeCom, nil</span>
+        case string(ScopeCom):<span class="cov9" title="127">
+                return ScopeCom, nil</span>
+        case string(ScopeState):<span class="cov1" title="1">
+                return ScopeState, nil</span>
+        case string(ScopeStore):<span class="cov1" title="1">
+                return ScopeStore, nil</span>
+        case string(ScopeSideChannel):<span class="cov1" title="1">
+                return ScopeSideChannel, nil</span>
+        default:<span class="cov1" title="1">
+                return "", fmt.Errorf("unknown scope %s", scope)</span>
+        }
+}
+
+// Api is an interface for data-centric message-driven communication among
+// decoupled DDAs. The communication API provides data-centric patterns for
+// one-way and two-way communication based on the publish-subscribe messaging
+// paradigm. The communication API is implemented by communication protocol
+// bindings that use specific underlying pub-sub messaging transport protocols,
+// like MQTT, Zenoh, Kafka, and others. Structured Event, Action, and Query data
+// is described in a common way adhering closely to the CloudEvents
+// specification.
+//
+// Note that Api implementations are meant to be thread-safe and Api interface
+// methods may be run on concurrent goroutines.
+type Api interface {
+
+        // Open asynchronously connects to the communication network of the
+        // underlying protocol binding with the supplied configuration.
+        //
+        // Upon successful connection or if the binding has been opened already, the
+        // returned error channel yields nil and is closed. If connection fails
+        // eventually, or if the given timeout elapses before connection is up, the
+        // returned error channel yields an error and is closed. Specify a zero
+        // timeout to disable preliminary timeout behavior.
+        Open(cfg *config.Config, timeout time.Duration) &lt;-chan error
+
+        // Close asynchronously disconnects from the communication network of the
+        // underlying protocol binding previously opened.
+        //
+        // The returned done channel is closed upon disconnection or if the binding
+        // is not yet open.
+        Close() (done &lt;-chan struct{})
+
+        // PublishEvent transmits the given Event with the given optional scope.
+        //
+        // PublishEvent blocks waiting for an acknowledgment, if configured
+        // accordingly. An error is returned if the Event cannot be transmitted, if
+        // acknowledgement times out, or if the binding is not yet open.
+        PublishEvent(event Event, scope ...Scope) error
+
+        // SubscribeEvent receives Events published on the specified subscription
+        // filter.
+        //
+        // SubscribeEvent blocks waiting for an acknowledgment, if configured
+        // accordingly. An error is returned along with a nil channel if
+        // subscription fails, if acknowledgement times out, or if the binding is
+        // not yet open.
+        //
+        // To unsubscribe from receiving events, cancel the given context which
+        // causes the close of the events channel asynchronously.
+        SubscribeEvent(ctx context.Context, filter SubscriptionFilter) (events &lt;-chan Event, err error)
+
+        // PublishAction transmits the given Action with the given optional scope,
+        // receiving ActionResults through the returned buffered results channel.
+        //
+        // PublishAction blocks waiting for acknowledgments, if configured
+        // accordingly. An error is returned along with a nil channel if Action
+        // cannot be transmitted, if acknowledgement times out, if ActionResults
+        // cannot be received, or if the binding is not yet open.
+        //
+        // To unsubscribe from receiving results, cancel the given context which
+        // causes the close of the results channel asynchronously.
+        PublishAction(ctx context.Context, action Action, scope ...Scope) (results &lt;-chan ActionResult, err error)
+
+        // SubscribeAction receives Actions published on the specified subscription
+        // filter, and provides a callback to be invoked to transmit back
+        // ActionResults.
+        //
+        // SubscribeAction blocks waiting for an acknowledgment, if configured
+        // accordingly. An error is returned along with a nil channel if
+        // subscription fails, if acknowledgement times out, or if the binding is
+        // not yet open.
+        //
+        // To unsubscribe from receiving actions, cancel the given context which
+        // causes the close of the actions channel asynchronously.
+        SubscribeAction(ctx context.Context, filter SubscriptionFilter) (actions &lt;-chan ActionWithCallback, err error)
+
+        // PublishQuery transmits the given Query with the given optional scope,
+        // receiving QueryResults through the returned buffered results channel.
+        //
+        // PublishQuery blocks waiting for acknowledgments, if configured
+        // accordingly. An error is returned along with a nil channel if Query
+        // cannot be transmitted, if acknowledgement times out, if QueryResults
+        // cannot be received, or if the binding is not yet open.
+        //
+        // To unsubscribe from receiving results, cancel the given context which
+        // causes the close of the results channel asynchronously.
+        PublishQuery(ctx context.Context, query Query, scope ...Scope) (results &lt;-chan QueryResult, err error)
+
+        // SubscribeQuery receives Querys published on the specified subscription
+        // filter, and provides a callback to be invoked to transmit back
+        // QueryResults.
+        //
+        // SubscribeQuery blocks waiting for an acknowledgment, if configured
+        // accordingly. An error is returned along with a nil channel if
+        // subscription fails, if acknowledgement times out, or if the binding is
+        // not yet open.
+        //
+        // To unsubscribe from receiving queries, cancel the given context which
+        // causes the close of the queries channel asynchronously.
+        SubscribeQuery(ctx context.Context, filter SubscriptionFilter) (queries &lt;-chan QueryWithCallback, err error)
+}
+
+// A SubscriptionFilter defines the context that determines which publications
+// should be transmitted to a subscriber.
+type SubscriptionFilter struct {
+
+        // Scope of the Event, Action, or Query with respect to the DDA service that
+        // triggers it (optional).
+        //
+        // If not present or an empty string, the default scope "com" is used.
+        Scope Scope
+
+        // Type of Event, Action, or Query to be filtered (required).
+        //
+        // Must be a non-empty string consisting of lower-case ASCII letters ('a' to
+        // 'z'), upper-case ASCII letters ('A' to 'Z'), ASCII digits ('0' to '9'),
+        // ASCII dot ('.'), ASCII hyphen (-), or ASCII underscore (_).
+        Type string
+
+        // Name to be used for a shared subscription (optional).
+        //
+        // A shared subscription is not routed to all subscribers specifying the
+        // same Scope, Type, and Share, but only to one of these. Shared
+        // subscriptions may be used to load balance published tasks so as to
+        // distribute workload evenly among a set of subscribers. Another use case
+        // is high availability through redundancy where a secondary subscribers
+        // takes over published tasks if the primary subscriber is no longer
+        // reachable (hot standby). Typically, shared subscriptions are used with
+        // the Action pattern.
+        //
+        // A published Event, Action, or Query is matching a shared subscription if
+        // it provides the same Scope and Type. If multiple shared subscriptions
+        // with different Share names but the same Scope and Type match such a
+        // publication, it will be routed to one (and only one) in each Share group.
+        //
+        // If non-empty, must consist of lower-case ASCII letters ('a' to 'z'),
+        // upper-case ASCII letters ('A' to 'Z'), ASCII digits ('0' to '9'), ASCII
+        // dot ('.'), ASCII hyphen (-), or ASCII underscore (_).
+        //
+        // If not present or an empty string, the related subscription is not
+        // shared.
+        Share string
+}
+
+// Event is a structure expressing an occurrence and its context. An event may
+// occur due to a raised or observed signal, a state change, an elapsed timer,
+// an observed or taken measurement, or any other announcement or activity. An
+// Event is routed from an event producer (source) to interested event consumers
+// using pub-sub messaging.
+type Event struct {
+
+        // Type of event related to the originating occurrence (required).
+        //
+        // Type is used as a subscription filter for routing the event to consumers
+        // via pub-sub messaging. Must be a non-empty string consisting of
+        // lower-case ASCII letters ('a' to 'z'), upper-case ASCII letters ('A' to
+        // 'Z'), ASCII digits ('0' to '9'), ASCII dot ('.'), ASCII hyphen (-), or
+        // ASCII underscore (_).
+        //
+        // Follow a consistent naming convention for types throughout an application
+        // to avoid naming collisions. For example, Type could use Reverse Domain
+        // Name Notation (com.mycompany.myapp.mytype) or some other hierarchical
+        // naming pattern with some levels in the hierarchy separated by dots,
+        // hyphens, or underscores.
+        Type string
+
+        // Identifies the event (required).
+        //
+        // Id must be non-empty and unique within the scope of the producer.
+        // Producers must ensure that (Source, Id) is unique for each distinct
+        // event. Consumers may assume that events with identical Source and Id are
+        // duplicates.
+        //
+        // Typically, Id is a UUID or a counter maintained by the producer.
+        Id string
+
+        // Identifies the context in which the event occurred (required).
+        //
+        // An event source is defined by the event producer. Producers must ensure
+        // that (Source, Id) is unique for each distinct event. Source must be
+        // non-empty.
+        //
+        // Typically, Source may be a URI describing the organization publishing the
+        // event or the process that generates the event.
+        Source string
+
+        // Timestamp when the occurrence happened or when the event data has been
+        // generated (optional).
+        //
+        // If present, must adhere to the format specified in [RFC 3339]. An empty
+        // string value indicates that a timestamp is not available or needed.
+        //
+        // [RFC 3339]: https://www.rfc-editor.org/rfc/rfc3339
+        Time string
+
+        // Domain-specific payload information about the occurrence (required).
+        //
+        // Encoding and decoding of the transmitted binary data is left to the user
+        // of the API interface. Any binary serialization format can be used.
+        Data []byte
+
+        // Content type of Data value (optional).
+        //
+        // If present, it must adhere to the format specified in [RFC 2046]. An
+        // empty string value indicates that a content type is implied by the
+        // application.
+        //
+        // [RFC 2046]: https://www.rfc-editor.org/rfc/rfc2046
+        DataContentType string
+}
+
+// Action is a structure expressing an action, command, or operation to be
+// carried out by interested action consumers. An Action is routed from an
+// action invoker to interested action consumers using pub-sub messaging.
+type Action struct {
+
+        // Type of action, command or operation to be performed (required).
+        //
+        // Type is used as a subscription filter for routing the action to consumers
+        // via pub-sub messaging. Must be a non-empty string consisting of
+        // lower-case ASCII letters ('a' to 'z'), upper-case ASCII letters ('A' to
+        // 'Z'), ASCII digits ('0' to '9'), ASCII dot ('.'), ASCII hyphen (-), or
+        // ASCII underscore (_).
+        //
+        // Follow a consistent naming convention for types throughout an application
+        // to avoid naming collisions. For example, Type could use Reverse Domain
+        // Name Notation (com.mycompany.myapp.mytype) or some other hierarchical
+        // naming pattern with some levels in the hierarchy separated by dots,
+        // hyphens, or underscores.
+        Type string
+
+        // Identifies the action (required).
+        //
+        // Id must be non-empty and unique within the scope of the action invoker.
+        // Invokers must ensure that (Source, Id) is unique for each distinct
+        // action. Consumers may assume that actions with identical Source and Id
+        // are duplicates.
+        //
+        // Typically, Id is a UUID or a counter maintained by the invoker.
+        Id string
+
+        // Identifies the context in which the action is invoked (required).
+        //
+        // An action source is defined by the action invoker. Invokers must ensure
+        // that (Source, Id) is unique for each distinct action. Source must be
+        // non-empty.
+        //
+        // Typically, Source may be a URI describing the organization publishing the
+        // action or the process that invokes the action.
+        Source string
+
+        // Data describing the parameters of the action (optional).
+        //
+        // Encoding and decoding of the transmitted binary data is left to the user
+        // of the API interface. Any binary serialization format can be used.
+        Params []byte
+
+        // Content type of Params value (optional).
+        //
+        // If present, it must adhere to the format specified in [RFC 2046]. An
+        // empty string value indicates that a content type is implied by the
+        // application.
+        //
+        // [RFC 2046]: https://www.rfc-editor.org/rfc/rfc2046
+        DataContentType string
+}
+
+// ActionResult is a structure containing resulting information returned to the
+// invoker of an Action. Each interested action consumer may transmit its own
+// action result(s) independently of the others. Multiple ActionResults over
+// time may be generated by a consumer for a single Action to transmit
+// progressive series of results.
+type ActionResult struct {
+
+        // Identifies the context, in which the action is executed (required).
+        //
+        // Typically, Context may be a URI describing the organization consuming the
+        // action or the process that carries out the action.
+        Context string
+
+        // Resulting data to be returned to the action invoker (required).
+        //
+        // Note that errors occurring while processing an action are also encoded as
+        // result binary data in a domain-specific way.
+        //
+        // Encoding and decoding of the transmitted binary data is left to the user
+        // of the API interface. Any binary serialization format can be used.
+        Data []byte
+
+        // Content type of Data value (optional).
+        //
+        // If present, it must adhere to the format specified in [RFC 2046]. An
+        // empty string value indicates that a content type is implied by the
+        // application.
+        //
+        // [RFC 2046]: https://www.rfc-editor.org/rfc/rfc2046
+        DataContentType string
+
+        // The sequence number of a multi-result response (required for progressive
+        // responses only).
+        //
+        // A zero value or -1 indicates a single result. If multiple ActionResults
+        // are to be returned, the sequence number is 1 for the first result and
+        // incremented by one with each newly generated result. If sequence number
+        // overflows its maximum value 9223372036854775807, the next value should
+        // revert to 1. A final result should be indicated by using the additive
+        // inverse of the generated sequence number.
+        //
+        // A zero or negative sequence number indicates that no more results will be
+        // published for the correlated action after the given one.
+        SequenceNumber int64
+}
+
+// ActionWithCallback embeds an Action with an associated callback function to
+// be invoked whenever an ActionResult should be transmitted back to the
+// publisher of the Action.
+type ActionWithCallback struct {
+
+        // Action associated with response callback function.
+        Action
+
+        // Callback when invoked transmits an ActionResult to the publisher of the
+        // correlated Action.
+        //
+        // An error is returned if ActionResult cannot be transmitted, or if the
+        // binding is not yet opened.
+        Callback ActionCallback
+}
+
+// ActionCallback is invoked by subscribers to transmit an ActionResult back to
+// the publisher.
+type ActionCallback func(result ActionResult) error
+
+// Query is a structure expressing a query to be answered by interested query
+// consumers. A Query is routed from a querier to interested query consumers
+// using pub-sub messaging.
+type Query struct {
+
+        // Type of query indicating intent or desired result (required).
+        //
+        // Type is used as a subscription filter for routing the query to consumers
+        // via pub-sub messaging. Must be a non-empty string consisting of
+        // lower-case ASCII letters ('a' to 'z'), upper-case ASCII letters ('A' to
+        // 'Z'), ASCII digits ('0' to '9'), ASCII dot ('.'), ASCII hyphen (-), or
+        // ASCII underscore (_).
+        //
+        // Follow a consistent naming convention for types throughout an application
+        // to avoid naming collisions. For example, Type could use Reverse Domain
+        // Name Notation (com.mycompany.myapp.mytype) or some other hierarchical
+        // naming pattern with some levels in the hierarchy separated by dots,
+        // hyphens, or underscores.
+        Type string
+
+        // Identifies the query (required).
+        //
+        // Id must be non-empty and unique within the scope of the querier. Queriers
+        // must ensure that (Source, Id) is unique for each distinct query.
+        // Consumers may assume that queries with identical Source and Id are
+        // duplicates.
+        //
+        // Typically, Id is a UUID or a counter maintained by the querier.
+        Id string
+
+        // Identifies the context in which the query is posed (required).
+        //
+        // A query source is defined by the querier. Queriers must ensure that
+        // (Source, Id) is unique for each distinct query. Source must be non-empty.
+        //
+        // Typically, Source may be a URI describing the organization publishing the
+        // query or the process that poses the query.
+        Source string
+
+        // Query data represented as indicated by Format (required).
+        //
+        // Encoding and decoding of the transmitted binary data is left to the user
+        // of the API interface. Any binary serialization format can be used.
+        Data []byte
+
+        // Content type of Data value (optional).
+        //
+        // If present, it must adhere to the format specified in [RFC 2046]. An
+        // empty string value indicates that a content type is implied by the
+        // application.
+        //
+        // The context type should represent the query language/format. For example,
+        // a GraphQL query should use "application/graphql" and a SPARQL query
+        // should use "application/sparql-query".
+        //
+        // [RFC 2046]: https://www.rfc-editor.org/rfc/rfc2046
+        DataContentType string
+}
+
+// QueryResult is a structure containing resulting information returned to the
+// querier. Each interested query consumer may transmit its own query result(s)
+// independently of the others. Multiple QueryResults over time may be generated
+// by a consumer for a single Query to transmit live query results whenever the
+// query yields new results due to update operations on the database.
+type QueryResult struct {
+
+        // Identifies the context, in which the query is executed (required).
+        //
+        // Typically, Context may be a URI describing the organization consuming the
+        // query or the process that retrieves query result data.
+        Context string
+
+        // Query result data returned to the querier (required).
+        //
+        // Encoding and decoding of the transmitted binary data is left to the user
+        // of the API interface. Any binary serialization format can be used.
+        Data []byte
+
+        // Content type of Data value (optional).
+        //
+        // If present, it must adhere to the format specified in [RFC 2046]. An
+        // empty string value indicates that a content type is implied by the
+        // application.
+        //
+        // If present, use MIME Content Types to specify the query result format.
+        // For example, use "application/sql" for a SQL query result,
+        // "application/graphql" for a GraphQL query result,
+        // "application/sparql-results+json" for a SPARQL query result encoded in
+        // JSON.
+        //
+        // [RFC 2046]: https://www.rfc-editor.org/rfc/rfc2046
+        DataContentType string
+
+        // The sequence number of a multi-result live query (required for live query
+        // responses only).
+        //
+        // A zero value or -1 indicates a single result. If multiple QueryResults
+        // are to be returned, the sequence number is 1 for the first result and
+        // incremented by one with each newly generated result. If sequence number
+        // overflows its maximum value 9223372036854775807, the next value should
+        // revert to 1. A final result should be indicated by using the additive
+        // inverse of the generated sequence number.
+        //
+        // A zero or negative sequence number indicates that no more results will be
+        // published for the correlated action after the given one.
+        SequenceNumber int64
+}
+
+// QueryWithCallback embeds a Query with an associated callback function to be
+// invoked whenever a QueryResult should be transmitted back to the publisher of
+// the Query.
+type QueryWithCallback struct {
+
+        // Query associated with response callback function.
+        Query
+
+        // Callback when invoked transmits a QueryResult to the publisher of the
+        // correlated Query.
+        //
+        // An error is returned if QueryResult cannot be transmitted, or if the
+        // binding is not yet opened.
+        Callback QueryCallback
+}
+
+// QueryCallback is invoked by subscribers to transmit a QueryResult back to the
+// publisher.
+type QueryCallback func(result QueryResult) error
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+package api
+
+import (
+        "context"
+        "sync"
+)
+
+const (
+        receiveBufferSize = 1 // default buffer size for receive channels
+)
+
+// Routable defines a union of communication pattern types that can be routed,
+// i.e. dispatched to either a subscriber or a publisher awaiting incoming
+// responses.
+//
+// This type is intended to be used by communication binding implementations.
+type Routable interface {
+        Event | ActionWithCallback | ActionResult | QueryWithCallback | QueryResult
+}
+
+// RouteFilter defines a subscription filter for a specific topic with a
+// correlation ID for response topics.
+//
+// This type is intended to be used by communication binding implementations.
+type RouteFilter[T comparable] struct {
+        Topic         T // subscription topic
+        CorrelationId T // unique correlation ID for response topic only
+}
+
+// RouteChannel is a struct representing the receive channel and the unsubscribe
+// function of a Routable type.
+//
+// This type is intended to be used by communication binding implementations.
+type RouteChannel[R Routable, T comparable] struct {
+
+        // Channel on which incoming routable data is received.
+        ReceiveChan chan R
+
+        // Done channel of the originating context. Function invoked to signal that
+        // the subscriber is no longer interested in receiving messages over
+        // ReceiveChan. May be invoked multiple times and simultaneously but only
+        // the first call will close the receive channel and unsubscribe on the
+        // communication binding if necessary.
+        CtxDone &lt;-chan struct{}
+
+        correlationId T // Correlation id of response channel, if present
+
+        unsub ComBindingFunc[T] // binding-specific unsubscribe function
+}
+
+// ComBindingFunc subscribes, publishes, or unsubscribes a topic of type T
+// (captured by the function) on a pub-sub communication binding.
+//
+// This type is intended to be used by communication binding implementations.
+type ComBindingFunc[T comparable] func() error
+
+// Router manages subscription-specific RouteFilters for a specific Routable
+// type and dispatches incoming messages on the associated registered receive
+// channels. It should be created with NewRouter() to ensure all internal fields
+// are correctly populated. Router operations may be invoked concurrently.
+//
+// This type is intended to be used by communication binding implementations.
+type Router[R Routable, T comparable] struct {
+        mu     sync.RWMutex                // protects field routes
+        routes map[T][]*RouteChannel[R, T] // maps route filters to associated route channels
+}
+
+// NewRouter creates a new *Router for the given Routable and RouteFilter type.
+func NewRouter[R Routable, T comparable]() *Router[R, T] <span class="cov10" title="241">{
+        return &amp;Router[R, T]{
+                routes: make(map[T][]*RouteChannel[R, T]),
+        }
+}</span>
+
+// GetTopics returns all registered RouteFilter Topics in a slice.
+func (r *Router[R, T]) GetTopics() []T <span class="cov6" title="33">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        topicSet := make(map[T]struct{}, len(r.routes))
+        for topic := range r.routes </span><span class="cov4" title="11">{
+                topicSet[topic] = struct{}{}
+        }</span>
+        <span class="cov6" title="33">topics := make([]T, len(topicSet))
+        i := 0
+        for topic := range topicSet </span><span class="cov4" title="11">{
+                topics[i] = topic
+                i++
+        }</span>
+        <span class="cov6" title="33">return topics</span>
+}
+
+// Add creates a new RouteChannel of a specific Routable type and registers it
+// with the given RouteFilter, if subscription by invoking the subscribe
+// function and the publish function is successful. Returns the associated
+// *RouteChannel with a receive channel of the given buffer size (if not
+// present, defaults to 1), and an unsubscribe function to be invoked by the
+// user to deregister the channel and stop receiving data over the channel. If
+// subscription and/or publication fails, an error is returned instead.
+//
+// Note that the publish function should only be used in combination with
+// registering response filters. Request filters should always specify a no-op
+// publish function.
+func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe ComBindingFunc[T], publish ComBindingFunc[T], unsubscribe ComBindingFunc[T], bufferSize ...int) (*RouteChannel[R, T], error) <span class="cov8" title="93">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        size := receiveBufferSize
+        if len(bufferSize) &gt; 0 </span><span class="cov1" title="1">{
+                size = bufferSize[0]
+        }</span>
+        <span class="cov8" title="92">recvChan := make(chan R, size)
+        rc := &amp;RouteChannel[R, T]{ReceiveChan: recvChan, correlationId: filter.CorrelationId}
+        rc.unsub = unsubscribe
+        rc.CtxDone = ctx.Done()
+
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov4" title="10">{ // subscription already set up
+                if err := publish(); err != nil </span><span class="cov1" title="1">{
+                        return nil, err
+                }</span>
+                <span class="cov4" title="9">r.routes[filter.Topic] = append(rcs, rc)
+                context.AfterFunc(ctx, func() </span><span class="cov4" title="9">{
+                        r.remove(filter, rc)
+                }</span>)
+                <span class="cov4" title="9">return rc, nil</span>
+        } else<span class="cov8" title="83"> { // subscription not yet set up
+                if err := subscribe(); err != nil </span><span class="cov1" title="1">{
+                        return nil, err
+                }</span>
+                <span class="cov8" title="82">if err := publish(); err != nil </span><span class="cov1" title="1">{
+                        _ = unsubscribe() // try unsubscribe as subscription is unused
+                        return nil, err
+                }</span>
+                <span class="cov8" title="81">r.routes[filter.Topic] = []*RouteChannel[R, T]{rc}
+                context.AfterFunc(ctx, func() </span><span class="cov8" title="81">{
+                        r.remove(filter, rc)
+                }</span>)
+                <span class="cov8" title="81">return rc, nil</span>
+        }
+}
+
+// Dispatch sends the given incoming Routable message on all the registered
+// RouteChannels of the associated RouteFilter.
+//
+// To be used with communication bindings that provide callback functions to
+// handle incoming messages.
+func (r *Router[R, T]) Dispatch(filter RouteFilter[T], message R) <span class="cov8" title="129">{
+        r.dispatch(filter, message)
+}</span>
+
+// DispatchChan sends incoming Routable messages received on a channel on all
+// the registered RouteChannels of the associated RouteFilter.
+//
+// To be used with communication bindings that provide channels to receive
+// incoming messages.
+func (r *Router[R, T]) DispatchChan(filter RouteFilter[T], messages &lt;-chan R) <span class="cov1" title="1">{
+        for msg := range messages </span><span class="cov1" title="1">{
+                r.dispatch(filter, msg)
+        }</span>
+}
+
+func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="cov8" title="130">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        dispatch := func(rc *RouteChannel[R, T], msg R) </span><span class="cov8" title="126">{
+                // Make sure no more messages are dispatched when associated context has
+                // been canceled/timed out but route channel has not yet been removed by
+                // context's AfterFunc.
+                select </span>{
+                case &lt;-rc.CtxDone:<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov8" title="125"></span>
+                }
+                <span class="cov8" title="125">select </span>{
+                case &lt;-rc.CtxDone:<span class="cov0" title="0">
+                        return</span>
+                case rc.ReceiveChan &lt;- message:<span class="cov8" title="126"></span>
+                }
+        }
+        <span class="cov8" title="129">zerocid := *new(T)
+        cid := filter.CorrelationId
+
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov8" title="124">{
+                if cid == zerocid </span><span class="cov7" title="66">{
+                        // Dispatch incoming request to all non-response route channels.
+                        for _, rc := range rcs </span><span class="cov7" title="70">{
+                                if rc.correlationId == zerocid </span><span class="cov7" title="68">{
+                                        dispatch(rc, message)
+                                }</span>
+                        }
+                } else<span class="cov7" title="58"> {
+                        // Dispatch incoming response to correlated route channel only.
+                        for _, rc := range rcs </span><span class="cov7" title="70">{
+                                if cid == rc.correlationId </span><span class="cov7" title="58">{
+                                        dispatch(rc, message)
+                                }</span>
+                        }
+                }
+        }
+}
+
+func (r *Router[R, T]) remove(filter RouteFilter[T], routeChannel *RouteChannel[R, T]) <span class="cov8" title="90">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov8" title="90">{
+                found := false
+                l := len(rcs)
+                for i := 0; i &lt; l; i++ </span><span class="cov8" title="100">{
+                        if found </span><span class="cov3" title="4">{
+                                rcs[i-1] = rcs[i]
+                        }</span> else<span class="cov8" title="96"> if rcs[i] == routeChannel </span><span class="cov8" title="90">{
+                                found = true
+                        }</span>
+                }
+                <span class="cov8" title="90">if found </span><span class="cov8" title="90">{
+                        defer close(routeChannel.ReceiveChan)
+                        rcs[l-1] = nil
+                        if l == 1 </span><span class="cov8" title="81">{
+                                if err := routeChannel.unsub(); err != nil </span><span class="cov1" title="1">{
+                                        // As binding subscription is kept, also keep topic without
+                                        // route channel to prevent a subsequent resubscription from
+                                        // failing.
+                                        r.routes[filter.Topic] = rcs[:0]
+                                        return
+                                }</span>
+                                <span class="cov8" title="80">delete(r.routes, filter.Topic)
+                                return</span>
+                        }
+                        <span class="cov4" title="9">r.routes[filter.Topic] = rcs[:l-1]
+                        return</span>
+                }
+        }
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package com provides a factory function that creates a specific communication
+// binding from a given communication protocol.
+package com
+
+import (
+        "fmt"
+
+        "github.com/coatyio/dda/services/com/api"
+        "github.com/coatyio/dda/services/com/mqtt5"
+)
+
+// New creates and initializes a new protocol-specific communication binding as
+// configured by the given communication protocol.
+//
+// Returns the new communication binding as a *Api interface. An error is
+// returned if the given communication protocol is not supported.
+func New(protocol string) (*api.Api, error) <span class="cov10" title="60">{
+        var api api.Api
+        switch protocol </span>{
+        case "mqtt5":<span class="cov9" title="54">
+                api = &amp;mqtt5.Mqtt5Binding{}</span>
+        default:<span class="cov4" title="6">
+                // TODO Whensoever Go plugin mechanism is really cross platform, use it
+                // to look up communication bindings that are provided externally.
+                return nil, fmt.Errorf("communication protocol %s: not supported", protocol)</span>
+        }
+
+        <span class="cov9" title="54">return &amp;api, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package mqtt5 provides a communication protocol binding implementation for
+// MQTT v5 transport protocol.
+package mqtt5
+
+import (
+        "context"
+        "crypto/tls"
+        "fmt"
+        "net/url"
+        "regexp"
+        "strconv"
+        "strings"
+        "sync"
+        "time"
+
+        "github.com/coatyio/dda/config"
+        "github.com/coatyio/dda/plog"
+        "github.com/coatyio/dda/services"
+        "github.com/coatyio/dda/services/com/api"
+        "github.com/eclipse/paho.golang/autopaho"
+        "github.com/eclipse/paho.golang/paho"
+        "github.com/google/uuid"
+)
+
+const (
+        disconnectTimeout = 1 * time.Second // time to wait for disconnect to complete
+        pubSubAckTimeout  = 1 * time.Second // time to wait for acknowledgments with QoS 1 and 2
+)
+
+const (
+        levelShare        = "$share" // Shared topic prefix
+        levelEvent        = "evt"    // Event topic level
+        levelAction       = "act"    // Action topic level
+        levelActionResult = "acr"    // ActionResult topic level
+        levelQuery        = "qry"    // Query topic level
+        levelQueryResult  = "qrr"    // QueryResult topic level
+)
+
+const (
+        userPropId              = "id" // user property Id
+        userPropSource          = "sr" // user property Source
+        userPropTime            = "tm" // user property Time
+        userPropContext         = "ct" // user property Context
+        userPropSequenceNumber  = "sq" // user property SequenceNumber
+        userPropDataContentType = "dt" // user property DataContentType
+)
+
+var strictClientIdRegex = regexp.MustCompile("[^0-9a-zA-Z]")
+
+type mqttRouteFilter = api.RouteFilter[string]
+
+// Mqtt5Binding realizes a communication protocol binding for MQTT v5 by
+// implementing interface api.Api.
+type Mqtt5Binding struct {
+        mu                 sync.RWMutex // protects following fields
+        eventRouter        *api.Router[api.Event, string]
+        actionRouter       *api.Router[api.ActionWithCallback, string]
+        actionResultRouter *api.Router[api.ActionResult, string]
+        queryRouter        *api.Router[api.QueryWithCallback, string]
+        queryResultRouter  *api.Router[api.QueryResult, string]
+        clientId           string
+        conn               *autopaho.ConnectionManager
+        qos                byte   // used for all publications and subscriptions
+        noLocal            bool   // used for all subscriptions
+        cluster            string // used as topic root field
+        responseId         string // unique ID in response topics
+        sharedSubAvailable bool   // are shared subscriptions supported by broker
+}
+
+// ClientId returns the MQTT client ID used to connect to the broker (exposed
+// for testing purposes).
+func (b *Mqtt5Binding) ClientId() string <span class="cov3" title="6">{
+        return b.clientId
+}</span>
+
+func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) &lt;-chan error <span class="cov7" title="53">{
+        ch := make(chan error, 1)
+        defer close(ch)
+
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.conn != nil </span><span class="cov3" title="5">{
+                ch &lt;- nil
+                return ch
+        }</span>
+
+        <span class="cov7" title="48">b.clientId = b.getClientId(cfg)
+        b.cluster = cfg.Cluster
+        b.responseId = cfg.Identity.Id
+        b.noLocal = cfg.Services.Com.Opts["noLocal"] == true
+
+        b.eventRouter = api.NewRouter[api.Event, string]()
+        b.actionRouter = api.NewRouter[api.ActionWithCallback, string]()
+        b.actionResultRouter = api.NewRouter[api.ActionResult, string]()
+        b.queryRouter = api.NewRouter[api.QueryWithCallback, string]()
+        b.queryResultRouter = api.NewRouter[api.QueryResult, string]()
+
+        connackChan := make(chan *paho.Connack, 1)
+        ccfg, err := b.getClientConfig(cfg, connackChan)
+        if err != nil </span><span class="cov5" title="15">{
+                ch &lt;- err
+                return ch
+        }</span>
+
+        <span class="cov6" title="33">plog.Printf("Open MQTT5 binding connecting to %s...\n", ccfg.BrokerUrls[0])
+
+        // Note that we cannot use a context.WithTimeout for NewConnection as
+        // autopaho disconnects as soon as the passed context is canceled, i.e. when
+        // the timeout elapses, even if the connection is already up!
+        //
+        // Note that NewConnection never returns an error in the currently used
+        // implementation.
+        conn, err := autopaho.NewConnection(context.Background(), *ccfg)
+        if err != nil </span><span class="cov0" title="0">{
+                ch &lt;- err
+                return ch
+        }</span>
+
+        // If a broker URL has an unsupported schema or if broker connection cannot
+        // be established paho.golang simply tries the next URL, endlessly. In this
+        // case AwaitConnection will block until the passed timeout elapses.
+        <span class="cov6" title="33">ctx := context.Background()
+        var cancel context.CancelFunc
+        if timeout != 0 </span><span class="cov6" title="33">{
+                ctx, cancel = context.WithTimeout(ctx, timeout)
+                defer cancel()
+        }</span>
+        <span class="cov6" title="33">if err := conn.AwaitConnection(ctx); err != nil </span><span class="cov3" title="5">{
+                _ = conn.Disconnect(context.Background())
+                ch &lt;- services.NewRetryableError(err)
+                return ch
+        }</span>
+
+        <span class="cov6" title="28">b.sharedSubAvailable = (&lt;-connackChan).Properties.SharedSubAvailable
+        b.conn = conn
+
+        return ch</span>
+}
+
+func (b *Mqtt5Binding) Close() (done &lt;-chan struct{}) <span class="cov7" title="51">{
+        ch := make(chan struct{})
+        defer close(ch)
+
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.conn == nil </span><span class="cov6" title="25">{
+                return ch
+        }</span>
+
+        <span class="cov6" title="26">ctx, cancel := context.WithTimeout(context.Background(), disconnectTimeout)
+        defer cancel()
+        _ = b.conn.Disconnect(ctx)
+
+        b.conn = nil
+
+        return ch</span>
+}
+
+func (b *Mqtt5Binding) PublishEvent(event api.Event, scope ...api.Scope) error <span class="cov7" title="55">{
+        if err := b.validatePatternTypeIdSource("Event", event.Type, event.Id, event.Source); err != nil </span><span class="cov6" title="28">{
+                return err
+        }</span>
+
+        <span class="cov6" title="27">scp := api.ScopeDef
+        if len(scope) &gt; 0 </span><span class="cov3" title="5">{
+                scp = scope[0]
+        }</span>
+
+        <span class="cov6" title="27">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return fmt.Errorf("PublishEvent %+v failed as binding is not yet open", event)
+        }</span>
+
+        <span class="cov5" title="22">topic, _ := b.topicWithLevels("", scp, levelEvent, event.Type)
+        return b.publish(topic, event.Data, paho.UserProperties{
+                {Key: userPropId, Value: event.Id},
+                {Key: userPropSource, Value: event.Source},
+                {Key: userPropTime, Value: event.Time},
+                {Key: userPropDataContentType, Value: event.DataContentType},
+        }, "", nil)</span>
+}
+
+func (b *Mqtt5Binding) SubscribeEvent(ctx context.Context, filter api.SubscriptionFilter) (events &lt;-chan api.Event, err error) <span class="cov6" title="33">{
+        if err := b.validatePatternFilter("Event", filter); err != nil </span><span class="cov4" title="7">{
+                return nil, err
+        }</span>
+
+        <span class="cov6" title="26">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("SubscribeEvent failed as binding is not yet open")
+        }</span>
+
+        <span class="cov5" title="21">pubTopic, subTopic := b.topicWithLevels(filter.Share, filter.Scope, levelEvent, filter.Type)
+        routeFilter := mqttRouteFilter{Topic: pubTopic}
+        rc, err := b.eventRouter.Add(ctx, routeFilter,
+                func() error </span><span class="cov5" title="19">{ return b.subscribe(subTopic) }</span>,
+                func() error <span class="cov5" title="21">{ return nil }</span>,
+                func() error <span class="cov5" title="19">{ return b.unsubscribe(subTopic) }</span>,
+        )
+        <span class="cov5" title="21">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov5" title="21">return rc.ReceiveChan, nil</span>
+}
+
+func (b *Mqtt5Binding) PublishAction(ctx context.Context, action api.Action, scope ...api.Scope) (results &lt;-chan api.ActionResult, err error) <span class="cov7" title="52">{
+        if err := b.validatePatternTypeIdSource("Action", action.Type, action.Id, action.Source); err != nil </span><span class="cov6" title="28">{
+                return nil, err
+        }</span>
+
+        <span class="cov6" title="24">scp := api.ScopeDef
+        if len(scope) &gt; 0 </span><span class="cov3" title="5">{
+                scp = scope[0]
+        }</span>
+
+        <span class="cov6" title="24">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("PublishAction %+v failed as binding is not yet open", action)
+        }</span>
+
+        <span class="cov5" title="19">pubTopic, _ := b.topicWithLevels("", scp, levelAction, action.Type)
+        pubResTopic, _ := b.topicWithLevels("", scp, levelActionResult, action.Type)
+        responseTopic, correlationId := b.responseInfo(pubResTopic)
+        routeFilter := mqttRouteFilter{Topic: responseTopic, CorrelationId: correlationId}
+        rc, err := b.actionResultRouter.Add(ctx, routeFilter,
+                func() error </span><span class="cov5" title="14">{ return b.subscribe(responseTopic) }</span>,
+                func() error <span class="cov5" title="19">{
+                        return b.publish(pubTopic, action.Params, paho.UserProperties{
+                                {Key: userPropId, Value: action.Id},
+                                {Key: userPropSource, Value: action.Source},
+                                {Key: userPropDataContentType, Value: action.DataContentType},
+                        }, responseTopic, []byte(correlationId))
+                }</span>,
+                func() error <span class="cov5" title="14">{ return b.unsubscribe(responseTopic) }</span>,
+        )
+        <span class="cov5" title="19">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov5" title="19">return rc.ReceiveChan, nil</span>
+}
+
+func (b *Mqtt5Binding) publishActionResult(result api.ActionResult, responseTopic string, correlationId []byte) error <span class="cov7" title="51">{
+        b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return fmt.Errorf("publishActionResult %+v failed as binding is not yet open", result)
+        }</span>
+
+        <span class="cov7" title="46">return b.publish(responseTopic, result.Data, paho.UserProperties{
+                {Key: userPropContext, Value: result.Context},
+                {Key: userPropDataContentType, Value: result.DataContentType},
+                {Key: userPropSequenceNumber, Value: strconv.FormatInt(result.SequenceNumber, 10)},
+        }, "", []byte(correlationId))</span>
+}
+
+func (b *Mqtt5Binding) SubscribeAction(ctx context.Context, filter api.SubscriptionFilter) (actions &lt;-chan api.ActionWithCallback, err error) <span class="cov6" title="41">{
+        if err := b.validatePatternFilter("Action", filter); err != nil </span><span class="cov4" title="12">{
+                return nil, err
+        }</span>
+
+        <span class="cov6" title="29">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("SubscribeAction failed as binding is not yet open")
+        }</span>
+
+        <span class="cov6" title="24">pubTopic, subTopic := b.topicWithLevels(filter.Share, filter.Scope, levelAction, filter.Type)
+        routeFilter := mqttRouteFilter{Topic: pubTopic}
+        rc, err := b.actionRouter.Add(ctx, routeFilter,
+                func() error </span><span class="cov6" title="24">{ return b.subscribe(subTopic) }</span>,
+                func() error <span class="cov6" title="24">{ return nil }</span>,
+                func() error <span class="cov6" title="24">{ return b.unsubscribe(subTopic) }</span>,
+        )
+        <span class="cov6" title="24">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov6" title="24">return rc.ReceiveChan, nil</span>
+}
+
+func (b *Mqtt5Binding) PublishQuery(ctx context.Context, query api.Query, scope ...api.Scope) (results &lt;-chan api.QueryResult, err error) <span class="cov6" title="42">{
+        if err := b.validatePatternTypeIdSource("Query", query.Type, query.Id, query.Source); err != nil </span><span class="cov6" title="28">{
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="14">scp := api.ScopeDef
+        if len(scope) &gt; 0 </span><span class="cov3" title="5">{
+                scp = scope[0]
+        }</span>
+
+        <span class="cov5" title="14">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("PublishQuery %+v failed as binding is not yet open", query)
+        }</span>
+
+        <span class="cov4" title="9">pubTopic, _ := b.topicWithLevels("", scp, levelQuery, query.Type)
+        pubResTopic, _ := b.topicWithLevels("", scp, levelQueryResult, query.Type)
+        responseTopic, correlationId := b.responseInfo(pubResTopic)
+        routeFilter := mqttRouteFilter{Topic: responseTopic, CorrelationId: correlationId}
+        rc, err := b.queryResultRouter.Add(ctx, routeFilter,
+                func() error </span><span class="cov4" title="9">{ return b.subscribe(responseTopic) }</span>,
+                func() error <span class="cov4" title="9">{
+                        return b.publish(pubTopic, query.Data, paho.UserProperties{
+                                {Key: userPropId, Value: query.Id},
+                                {Key: userPropSource, Value: query.Source},
+                                {Key: userPropDataContentType, Value: query.DataContentType},
+                        }, responseTopic, []byte(correlationId))
+                }</span>,
+                func() error <span class="cov4" title="9">{ return b.unsubscribe(responseTopic) }</span>,
+        )
+        <span class="cov4" title="9">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov4" title="9">return rc.ReceiveChan, nil</span>
+}
+
+func (b *Mqtt5Binding) publishQueryResult(result api.QueryResult, responseTopic string, correlationId []byte) error <span class="cov6" title="31">{
+        b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return fmt.Errorf("publishQueryResult %+v failed as binding is not yet open", result)
+        }</span>
+
+        <span class="cov6" title="26">return b.publish(responseTopic, result.Data, paho.UserProperties{
+                {Key: userPropContext, Value: result.Context},
+                {Key: userPropDataContentType, Value: result.DataContentType},
+                {Key: userPropSequenceNumber, Value: strconv.FormatInt(result.SequenceNumber, 10)},
+        }, "", []byte(correlationId))</span>
+}
+
+func (b *Mqtt5Binding) SubscribeQuery(ctx context.Context, filter api.SubscriptionFilter) (queries &lt;-chan api.QueryWithCallback, err error) <span class="cov6" title="26">{
+        if err := b.validatePatternFilter("Query", filter); err != nil </span><span class="cov4" title="7">{
+                return nil, err
+        }</span>
+
+        <span class="cov5" title="18">b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("SubscribeQuery failed as binding is not yet open")
+        }</span>
+
+        <span class="cov5" title="14">pubTopic, subTopic := b.topicWithLevels(filter.Share, filter.Scope, levelQuery, filter.Type)
+        routeFilter := mqttRouteFilter{Topic: pubTopic}
+        rc, err := b.queryRouter.Add(ctx, routeFilter,
+                func() error </span><span class="cov5" title="14">{ return b.subscribe(subTopic) }</span>,
+                func() error <span class="cov5" title="14">{ return nil }</span>,
+                func() error <span class="cov5" title="14">{ return b.unsubscribe(subTopic) }</span>,
+        )
+        <span class="cov5" title="14">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov5" title="14">return rc.ReceiveChan, nil</span>
+}
+
+func (b *Mqtt5Binding) getClientConfig(cfg *config.Config, connackChan chan&lt;- *paho.Connack) (*autopaho.ClientConfig, error) <span class="cov7" title="48">{
+        var comCfg = cfg.Services.Com
+        var clientConfig autopaho.ClientConfig
+
+        clientConfig = autopaho.ClientConfig{
+                OnConnectionUp: func(conn *autopaho.ConnectionManager, ack *paho.Connack) </span><span class="cov6" title="33">{
+                        if connackChan != nil </span><span class="cov6" title="28">{
+                                clientConfig.Debug.Printf("broker connection up\n")
+                                defer close(connackChan)
+                                connackChan &lt;- ack
+                                connackChan = nil
+                        }</span> else<span class="cov3" title="5"> {
+                                clientConfig.Debug.Printf("broker reconnection up\n")
+                                b.resubscribe()
+                        }</span>
+                },
+                OnConnectError: func(err error) <span class="cov3" title="5">{ clientConfig.Debug.Printf("broker connection error: %v\n", err) }</span>,
+                Debug:          paho.NOOPLogger{},
+                ClientConfig: paho.ClientConfig{
+                        ClientID:      b.clientId,
+                        OnClientError: func(err error) <span class="cov0" title="0">{ clientConfig.Debug.Printf("client error: %v\n", err) }</span>,
+                        OnServerDisconnect: func(d *paho.Disconnect) <span class="cov3" title="5">{
+                                if d.Properties != nil </span><span class="cov3" title="5">{
+                                        clientConfig.Debug.Printf("broker requested disconnect: %s\n", d.Properties.ReasonString)
+                                }</span> else<span class="cov0" title="0"> {
+                                        clientConfig.Debug.Printf("broker requested disconnect with reason code: %d\n", d.ReasonCode)
+                                }</span>
+                        },
+                        Router: paho.NewSingleHandlerRouter(b.handle),
+                },
+        }
+
+        <span class="cov7" title="48">if comCfg.Opts["debug"] == true &amp;&amp; plog.Enabled() </span><span class="cov0" title="0">{
+                // Inject paho and autopaho log output into standard logger.
+                clientConfig.Debug = plog.WithPrefix("autopaho ")
+                clientConfig.PahoDebug = plog.WithPrefix("paho ")
+        }</span>
+
+        <span class="cov7" title="48">clientConfig.SetConnectPacketConfigurator(func(c *paho.Connect) *paho.Connect </span><span class="cov6" title="33">{
+                // As long as client persistence is not supported in paho, a Connection
+                // should start a new session on both client and server. See comment
+                // https://github.com/eclipse/paho.golang/blob/d63b3b28d25ff73076c8846c92c4d062503e646e/autopaho/auto.go#L125
+                c.CleanStart = true
+                return c
+        }</span>)
+
+        <span class="cov7" title="48">sUrl := comCfg.Url
+        if sUrl == "" </span><span class="cov0" title="0">{
+                sUrl = "tcp://localhost:1883"
+        }</span>
+        <span class="cov7" title="48">if brokerUrl, err := url.Parse(sUrl); err != nil </span><span class="cov3" title="5">{
+                return nil, fmt.Errorf("invalid 'services.com.url' in DDA configuration: %w", err)
+        }</span> else<span class="cov6" title="43"> {
+                clientConfig.BrokerUrls = []*url.URL{brokerUrl}
+        }</span>
+
+        <span class="cov6" title="43">if comCfg.Auth.Password != "" </span><span class="cov4" title="7">{
+                // Note: MQTT version 5 of the protocol allows the sending of a Password
+                // with no User Name, where MQTT v3.1.1 did not. This reflects the
+                // common use of Password for credentials other than a password.
+                clientConfig.SetUsernamePassword(comCfg.Auth.Username, []byte(comCfg.Auth.Password))
+        }</span> else<span class="cov6" title="36"> {
+                clientConfig.ResetUsernamePassword()
+        }</span>
+
+        <span class="cov6" title="43">switch comCfg.Auth.Method </span>{
+        case "none", "":<span class="cov6" title="28"></span>
+        case "tls":<span class="cov4" title="10">
+                cert, err := tls.LoadX509KeyPair(comCfg.Auth.Cert, comCfg.Auth.Key)
+                if err != nil </span><span class="cov3" title="5">{
+                        return nil, fmt.Errorf("invalid or missing PEM file in DDA configuration under 'services.com.auth.cert/.key' : %w", err)
+                }</span>
+                //#nosec G402 -- Default for configuration option Verify is true
+                <span class="cov3" title="5">clientConfig.TlsCfg = &amp;tls.Config{
+                        Certificates:       []tls.Certificate{cert},
+                        InsecureSkipVerify: !comCfg.Auth.Verify,
+                }</span>
+        default:<span class="cov3" title="5">
+                return nil, fmt.Errorf("unsupported 'services.com.auth.method' %s in DDA configuration", comCfg.Auth.Method)</span>
+        }
+
+        <span class="cov6" title="33">switch v := comCfg.Opts["keepAlive"].(type) </span>{
+        case int:<span class="cov0" title="0">
+                clientConfig.KeepAlive = uint16(v)</span>
+        default:<span class="cov6" title="33">
+                clientConfig.KeepAlive = 30</span>
+        }
+
+        <span class="cov6" title="33">switch v := comCfg.Opts["qos"].(type) </span>{
+        case int:<span class="cov6" title="28">
+                b.qos = byte(v)</span>
+        default:<span class="cov3" title="5">
+                b.qos = byte(0)</span>
+        }
+
+        <span class="cov6" title="33">switch v := comCfg.Opts["connectRetryDelay"].(type) </span>{
+        case int:<span class="cov0" title="0">
+                clientConfig.ConnectRetryDelay = time.Duration(v) * time.Millisecond</span>
+        default:<span class="cov6" title="33">
+                clientConfig.ConnectRetryDelay = 1000 * time.Millisecond</span>
+        }
+
+        <span class="cov6" title="33">switch v := comCfg.Opts["connectTimeout"].(type) </span>{
+        case int:<span class="cov0" title="0">
+                clientConfig.ConnectTimeout = time.Duration(v) * time.Millisecond</span>
+        default:<span class="cov6" title="33">
+                clientConfig.ConnectTimeout = 10000 * time.Millisecond</span>
+        }
+
+        <span class="cov6" title="33">return &amp;clientConfig, nil</span>
+}
+
+func (b *Mqtt5Binding) getClientId(cfg *config.Config) string <span class="cov7" title="48">{
+        clientId := cfg.Identity.Name + cfg.Identity.Id
+        if cfg.Services.Com.Opts["strictClientId"] == true </span><span class="cov7" title="48">{
+                // MQTT Version 5.0 Specification: [MQTT-3.1.3-5]
+                //
+                // The Server MUST allow ClientID’s which are between 1 and 23 UTF-8
+                // encoded bytes in length, and that contain only the characters
+                // "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
+                //
+                // The Server MAY allow ClientID’s that contain more than 23 encoded
+                // bytes. The Server MAY allow ClientID’s that contain characters not
+                // included in the list given above.
+                clientId = strictClientIdRegex.ReplaceAllLiteralString(clientId, "0")
+                if len(clientId) &gt; 23 </span><span class="cov7" title="48">{
+                        clientId = clientId[0:23]
+                }</span>
+        }
+        <span class="cov7" title="48">return clientId</span>
+}
+
+func (b *Mqtt5Binding) validatePatternTypeIdSource(pat string, typ string, id string, source string) error <span class="cov8" title="149">{
+        if err := config.ValidateName(typ, pat, "Type"); err != nil </span><span class="cov6" title="42">{
+                return err
+        }</span>
+        <span class="cov8" title="107">if err := config.ValidateNonEmpty(id, pat, "Id"); err != nil </span><span class="cov5" title="21">{
+                return err
+        }</span>
+        <span class="cov8" title="86">if err := config.ValidateNonEmpty(source, pat, "Source"); err != nil </span><span class="cov5" title="21">{
+                return err
+        }</span>
+        <span class="cov7" title="65">return nil</span>
+}
+
+func (b *Mqtt5Binding) validatePatternFilter(pat string, filter api.SubscriptionFilter) error <span class="cov8" title="100">{
+        if err := config.ValidateName(filter.Type, pat, "Type"); err != nil </span><span class="cov5" title="21">{
+                return err
+        }</span>
+        <span class="cov7" title="79">if filter.Share != "" </span><span class="cov5" title="15">{
+                if !b.sharedSubAvailable </span><span class="cov0" title="0">{
+                        return fmt.Errorf("shared subscriptions are not supported by the MQTT 5 broker")
+                }</span>
+                <span class="cov5" title="15">if err := config.ValidateName(filter.Share, pat, "Share"); err != nil </span><span class="cov3" title="5">{
+                        return err
+                }</span>
+        }
+        <span class="cov7" title="73">return nil</span>
+}
+
+func (b *Mqtt5Binding) topicWithLevels(share string, scope api.Scope, levels ...string) (pubTopic string, subTopic string) <span class="cov8" title="137">{
+        if scope == api.ScopeDef </span><span class="cov8" title="122">{
+                scope = api.ScopeCom
+        }</span>
+        <span class="cov8" title="137">pubTopic = fmt.Sprintf("%s/%s/%s", b.cluster, scope, strings.Join(levels, "/"))
+        subTopic = pubTopic
+        if share != "" </span><span class="cov4" title="10">{
+                subTopic = fmt.Sprintf("%s/%s/%s/%s/%s", levelShare, share, b.cluster, scope, strings.Join(levels, "/"))
+        }</span>
+        <span class="cov8" title="137">return</span>
+}
+
+func (b *Mqtt5Binding) createPubSubContext() (context.Context, context.CancelFunc) <span class="cov9" title="286">{
+        var cancel context.CancelFunc = func() </span>{<span class="cov9" title="197">}</span>
+        <span class="cov9" title="286">ctx := context.Background()
+        if b.qos != 0 </span><span class="cov8" title="90">{
+                ctx, cancel = context.WithTimeout(ctx, pubSubAckTimeout)
+        }</span>
+        <span class="cov10" title="287">return ctx, cancel</span>
+}
+
+func (b *Mqtt5Binding) responseInfo(topic string) (string, string) <span class="cov6" title="28">{
+        return fmt.Sprintf("%s/%s", topic, b.responseId), uuid.NewString()
+}</span>
+
+func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.UserProperties, responseTopic string, correlationId []byte) error <span class="cov8" title="122">{
+        ctx, cancel := b.createPubSubContext()
+        defer cancel()
+
+        props := &amp;paho.PublishProperties{
+                // Note: PayloadFormat 1 means payload must conform to UTF-8 string
+                // encoding (broker must check it!). As any binary data can be sent,
+                // do not use it!
+                //
+                // PayloadFormat: paho.Byte(1), ContentType:   "text/plain", //
+                // "application/json",
+
+                User: userProps,
+        }
+
+        if responseTopic != "" </span><span class="cov6" title="28">{
+                props.ResponseTopic = responseTopic
+        }</span>
+        <span class="cov8" title="122">if correlationId != nil </span><span class="cov8" title="100">{
+                props.CorrelationData = correlationId
+        }</span>
+
+        <span class="cov8" title="122">p := &amp;paho.Publish{
+                QoS:        b.qos,
+                Topic:      topic,
+                Payload:    payload,
+                Properties: props,
+        }
+
+        if _, err := b.conn.Publish(ctx, p); err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov8" title="122">return nil</span>
+}
+
+func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" title="85">{
+        if len(topics) == 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="85">ctx, cancel := b.createPubSubContext()
+        defer cancel()
+
+        subs := make([]paho.SubscribeOptions, 0, len(topics))
+        for _, topic := range topics </span><span class="cov8" title="85">{
+                subs = append(subs, paho.SubscribeOptions{
+                        Topic: topic,
+                        QoS:   b.qos,
+
+                        // It is a Protocol Error to set the No Local bit to 1 on a
+                        // Shared Subscription [MQTT-3.8.3-4].
+                        NoLocal: b.noLocal &amp;&amp; !strings.HasPrefix(topic, levelShare),
+                })
+        }</span>
+        <span class="cov8" title="84">s := &amp;paho.Subscribe{Subscriptions: subs}
+
+        b.mu.RLock()
+        defer b.mu.RUnlock()
+
+        if b.conn == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("subscribe failed as binding is not yet open")
+        }</span>
+
+        <span class="cov8" title="85">if _, err := b.conn.Subscribe(ctx, s); err != nil </span><span class="cov0" title="0">{
+                return services.RetryableErrorf("subscribe %v failed: %w", topics, err)
+        }</span>
+        <span class="cov8" title="85">return nil</span>
+}
+
+func (b *Mqtt5Binding) unsubscribe(topics ...string) error <span class="cov7" title="80">{
+        if len(topics) == 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov7" title="80">ctx, cancel := b.createPubSubContext()
+        defer cancel()
+
+        u := &amp;paho.Unsubscribe{Topics: topics}
+
+        // Trying to acquire read lock only fails if unsubscribe is invoked in a
+        // context that has already acquired a write lock, i.e. within the Close
+        // method invoking router.Clear. In this case, unsubscribe would deadlock
+        // when acquiring a recursive read lock. As the write lock is already
+        // acquired we can safely continue without read locking. All other
+        // invocations of unsubscribe are in a user code context when calling an
+        // UnsubscribeBindungFunc, so acquiring the read lock won't fail.
+        if b.mu.TryRLock() </span><span class="cov7" title="80">{
+                defer b.mu.RUnlock()
+        }</span>
+
+        <span class="cov7" title="80">if b.conn == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("unsubscribe failed as binding is not yet open")
+        }</span>
+
+        <span class="cov7" title="80">if _, err := b.conn.Unsubscribe(ctx, u); err != nil </span><span class="cov1" title="1">{
+                plog.Printf("unsubscribe %v failed: %v", topics, err)
+                return services.RetryableErrorf("unsubscribe %v failed: %w", topics, err)
+        }</span>
+        <span class="cov7" title="79">return nil</span>
+}
+
+func (b *Mqtt5Binding) resubscribe() <span class="cov3" title="5">{
+        if err := b.subscribe(b.getTopics()...); err != nil </span><span class="cov0" title="0">{
+                plog.Printf("resubscribe failed: %v", err)
+        }</span>
+}
+
+func (b *Mqtt5Binding) getTopics() []string <span class="cov3" title="5">{
+        eventTopics := b.eventRouter.GetTopics()
+        actionTopics := b.actionRouter.GetTopics()
+        actionResultTopics := b.actionResultRouter.GetTopics()
+        queryTopics := b.queryRouter.GetTopics()
+        queryResultTopics := b.queryResultRouter.GetTopics()
+        topicsLen := len(eventTopics) + len(actionTopics) + len(actionResultTopics) + len(queryTopics) + len(queryResultTopics)
+        topics := make([]string, topicsLen)
+        i := 0
+        i += copy(topics[i:], eventTopics)
+        i += copy(topics[i:], actionTopics)
+        i += copy(topics[i:], actionResultTopics)
+        i += copy(topics[i:], queryTopics)
+        i += copy(topics[i:], queryResultTopics)
+        return topics
+}</span>
+
+func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov8" title="126">{
+        if p.Properties == nil || p.Properties.User == nil </span><span class="cov0" title="0">{
+                plog.Printf("handle: discard incoming topic %s without Properties", p.Topic)
+                return
+        }</span>
+        <span class="cov8" title="126">levels := strings.Split(p.Topic, "/")
+        levelPattern, typeName := levels[2], levels[3]
+        id, source := p.Properties.User.Get(userPropId), p.Properties.User.Get(userPropSource)
+        routeFilter := mqttRouteFilter{Topic: p.Topic}
+        correlationId := p.Properties.CorrelationData
+        responseTopic := p.Properties.ResponseTopic
+        if _, err := api.ToScope(levels[1]); err != nil </span><span class="cov0" title="0">{
+                plog.Printf("handle: error on incoming topic: %v", err)
+                return
+        }</span>
+
+        <span class="cov8" title="126">switch levelPattern </span>{
+        case levelEvent:<span class="cov6" title="26">
+                event := api.Event{
+                        Type:            typeName,
+                        Id:              id,
+                        Source:          source,
+                        Time:            p.Properties.User.Get(userPropTime),
+                        Data:            p.Payload,
+                        DataContentType: p.Properties.User.Get(userPropDataContentType),
+                }
+                b.eventRouter.Dispatch(routeFilter, event)</span>
+        case levelAction:<span class="cov6" title="24">
+                actionCb := api.ActionWithCallback{
+                        Action: api.Action{
+                                Type:            typeName,
+                                Id:              id,
+                                Source:          source,
+                                Params:          p.Payload,
+                                DataContentType: p.Properties.User.Get(userPropDataContentType),
+                        },
+                        Callback: func(result api.ActionResult) error </span><span class="cov7" title="51">{
+                                return b.publishActionResult(result, responseTopic, correlationId)
+                        }</span>,
+                }
+                <span class="cov6" title="24">b.actionRouter.Dispatch(routeFilter, actionCb)</span>
+        case levelActionResult:<span class="cov6" title="39">
+                seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        plog.Printf("handle: error on SequenceNumber: %v", err)
+                        return
+                }</span>
+                <span class="cov6" title="39">result := api.ActionResult{
+                        Context:         p.Properties.User.Get(userPropContext),
+                        Data:            p.Payload,
+                        DataContentType: p.Properties.User.Get(userPropDataContentType),
+                        SequenceNumber:  seqNo,
+                }
+                routeFilter.CorrelationId = string(p.Properties.CorrelationData)
+                b.actionResultRouter.Dispatch(routeFilter, result)</span>
+        case levelQuery:<span class="cov5" title="14">
+                queryCb := api.QueryWithCallback{
+                        Query: api.Query{
+                                Type:            typeName,
+                                Id:              id,
+                                Source:          source,
+                                Data:            p.Payload,
+                                DataContentType: p.Properties.User.Get(userPropDataContentType),
+                        },
+                        Callback: func(result api.QueryResult) error </span><span class="cov6" title="31">{
+                                return b.publishQueryResult(result, responseTopic, correlationId)
+                        }</span>,
+                }
+                <span class="cov5" title="14">b.queryRouter.Dispatch(routeFilter, queryCb)</span>
+        case levelQueryResult:<span class="cov5" title="23">
+                seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        plog.Printf("handle: error on SequenceNumber: %v", err)
+                        return
+                }</span>
+                <span class="cov5" title="23">result := api.QueryResult{
+                        Context:         p.Properties.User.Get(userPropContext),
+                        Data:            p.Payload,
+                        DataContentType: p.Properties.User.Get(userPropDataContentType),
+                        SequenceNumber:  seqNo,
+                }
+                routeFilter.CorrelationId = string(p.Properties.CorrelationData)
+                b.queryResultRouter.Dispatch(routeFilter, result)</span>
+        default:<span class="cov0" title="0">
+                plog.Printf("handle: discard malformed incoming topic %s", p.Topic)</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package services provides common functionality to be reused by service
+// implementations.
+package services
+
+import "fmt"
+
+type retryable interface {
+        Retryable() bool
+}
+
+type retryableError struct {
+        error
+}
+
+func (r *retryableError) Error() string <span class="cov1" title="1">{
+        return "retryable error: " + r.error.Error()
+}</span>
+
+func (r *retryableError) Retryable() bool <span class="cov4" title="7">{
+        return true
+}</span>
+
+// RetryableErrorf returns a retryable error that formats according to the given
+// format specifier.
+//
+// Use the function IsRetryable(error) to check whether a given error is
+// retryable or not.
+func RetryableErrorf(format string, a ...any) error <span class="cov2" title="2">{
+        return &amp;retryableError{error: fmt.Errorf(format, a...)}
+}</span>
+
+// NewRetryableError creates and returns a new error from the given error
+// indicating that it is retryable. Returns nil if the given error is nil.
+//
+// Use the function IsRetryable(error) to check whether a given error is
+// retryable or not.
+func NewRetryableError(err error) error <span class="cov4" title="7">{
+        if err == nil </span><span class="cov1" title="1">{
+                return nil
+        }</span>
+        <span class="cov4" title="6">return &amp;retryableError{error: err}</span>
+}
+
+// IsRetryable indicates whether the error is caused by an operation that timed
+// out due to a temporary unavailability and may be retried with a backoff
+// potentially. IsRetryable returns false if the error is nil or if the error is
+// caused by an operation that cannot be retried due to failed preconditions,
+// invalid arguments, or on any other grounds.
+func IsRetryable(err error) bool <span class="cov10" title="174">{
+        rerr, ok := err.(retryable)
+        return ok &amp;&amp; rerr.Retryable()
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

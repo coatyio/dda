@@ -1,9 +1,0 @@
-{
-    "protoc": {
-        "compile_on_save": false,
-        "options": [
-            "--proto_path=apis/grpc/protos"
-        ]
-    },
-    "go.buildTags": "testing"
-}
