@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: © 2023 Siemens AG
 // SPDX-License-Identifier: MIT
 
-// Package testdata provides common building blocks at the package level that
-// may be imported into the TestMain function of testing packages. It enables
-// end-to-end testing and benchmarking of peripheral DDA services over supported
-// communication bindings.
+// Package testdata provides common building blocks and utility functions at the
+// package level that may be imported into the TestMain function of testing
+// packages. It enables end-to-end testing and benchmarking of peripheral DDA
+// services over supported bindings.
 //
 // This package MUST only be imported and used inside Go testing files so that
 // its contents are omitted from a DDA binary.
@@ -38,9 +38,14 @@ func GetTestName(names ...string) string {
 	return strings.Join(names, "-")
 }
 
-// PubSubSetupOptions defines options for setting up a pub-sub communication
-// network.
-type PubSubSetupOptions struct {
+// CommunicationSetup defines options to set up pub-sub communication
+// infrastructure, such as a broker, indexed by communication binding protocol
+// name.
+type CommunicationSetup map[string]*CommunicationSetupOptions
+
+// CommunicationSetupOptions defines options for setting up a pub-sub
+// communication network for a specific communication binding.
+type CommunicationSetupOptions struct {
 
 	// Setup options for a specific pub-sub communication infrastructure (e.g. a
 	// broker).
@@ -53,87 +58,125 @@ type PubSubSetupOptions struct {
 	DisconnectBindingFunc func(binding comapi.Api, delay time.Duration)
 }
 
-// PubSubCommunicationSetup defines options to set up pub-sub communication
-// infrastructure, such as a broker, indexed by communication binding protocol
-// name.
-type PubSubCommunicationSetup map[string]*PubSubSetupOptions
+// StoreSetup defines options to set up storage infrastructure, such as a
+// temporary storage directory, indexed by storage binding engine name.
+type StoreSetup map[string]*StoreSetupOptions
 
-// RunMain runs the tests without pub-sub Communication setup, then exits.
-func RunMain(m *testing.M) {
-	RunMainWithSetup(m, make(PubSubCommunicationSetup))
+// StoreSetupOptions defines options for setting up a specific storage binding.
+type StoreSetupOptions struct {
+	StorageFile string // for file-based storage
+	StorageDir  string // for directory-based storage
 }
 
-// RunMainWithSetup runs the tests with the given given pub-sub communication
-// setup, then exits with the exit code returned by m.Run.
-func RunMainWithSetup(m *testing.M, setup PubSubCommunicationSetup) {
-	packageTeardown := TestSetup(setup)
-	defer packageTeardown()
-	m.Run()
-}
-
-// TestSetup sets up pub-sub end-to-end package testing and returns a function
-// to tear down package testing.
-//
-// TestSetup sets up the pub-sub communication infrastructure, shuts it down on
-// teardown, and provides functions to disconnect the communication binding from
-// the pub-sub communication network in the *PubSubSetupOptions stuctures. It
-// also enables or disables plog logging according to the DDA_TEST_LOG
-// environment variable.
-func TestSetup(setup PubSubCommunicationSetup) func() {
-	ddaLog := os.Getenv("DDA_TEST_LOG") == "true"
-	enableLog := func() {}
-	if !ddaLog {
-		enableLog = disableLog()
-	}
-
-	cleanupPubSub := make(map[string]func())
-	for proto, val := range setup {
-		switch proto {
-		case "mqtt5":
-			server := startMqtt5Broker(val.SetupOpts)
-			val.DisconnectBindingFunc = func(bnd comapi.Api, delay time.Duration) {
-				if server != nil {
+// RunMainWithComSetup runs the tests with the given communication setup, then
+// exits with the exit code returned by m.Run.
+func RunMainWithComSetup(m *testing.M, setup CommunicationSetup) {
+	setupFunc := func() map[string]func() {
+		cleanup := make(map[string]func())
+		for protocol, val := range setup {
+			switch protocol {
+			case "mqtt5":
+				server := startMqtt5Broker(val.SetupOpts)
+				val.DisconnectBindingFunc = func(bnd comapi.Api, delay time.Duration) {
 					switch bnd := bnd.(type) {
 					case *cmqtt.Mqtt5Binding:
 						_ = disconnectMqtt5ClientByBroker(server, bnd.ClientId())
 						time.Sleep(delay)
 					}
 				}
-			}
-			cleanupPubSub[proto] = func() {
-				stopMqtt5Broker(server)
+				cleanup[protocol] = func() {
+					stopMqtt5Broker(server)
+				}
 			}
 		}
+		return cleanup
 	}
 
-	return func() {
-		for _, cleanFunc := range cleanupPubSub {
+	runMain(m, setupFunc)
+}
+
+// RunMainWithStoreSetup runs the tests with the given store setup, then exits
+// with the exit code returned by m.Run.
+func RunMainWithStoreSetup(m *testing.M, setup StoreSetup) {
+	setupFunc := func() map[string]func() {
+		cleanup := make(map[string]func())
+		for engine, val := range setup {
+			if val.StorageFile != "" {
+				plog.Printf("Created %s storage file: %s", engine, val.StorageFile)
+				cleanup[engine] = func() {
+					os.Remove(val.StorageFile)
+				}
+			}
+			if val.StorageDir != "" {
+				plog.Printf("Created %s storage directory: %s", engine, val.StorageDir)
+				cleanup[engine] = func() {
+					os.RemoveAll(val.StorageDir)
+				}
+			}
+		}
+		return cleanup
+	}
+
+	runMain(m, setupFunc)
+}
+
+func runMain(m *testing.M, setup func() map[string]func()) {
+	ddaLog := os.Getenv("DDA_TEST_LOG") == "true"
+	enableLog := func() {}
+	if !ddaLog {
+		enableLog = disableLog()
+	}
+
+	cleanup := setup()
+
+	defer func() {
+		for _, cleanFunc := range cleanup {
 			cleanFunc()
 		}
 		enableLog()
-	}
+	}()
+
+	m.Run()
 }
 
-// Create new Config with the given cluster, identity name, and communication
-// service. By default, Client API services are disabled in the returned
-// configuration.
-func NewConfig(cluster string, identityName string, comSrv config.ConfigComService) *config.Config {
+// NewConfig creates new Config with the given cluster, identity name, and
+// communication service. By default, Client API services are disabled in the
+// returned configuration.
+func NewConfig(cluster string, identityName string, srv config.ConfigComService) *config.Config {
 	cfg := config.New()
 	cfg.Identity.Name = identityName
 	cfg.Cluster = cluster
-	cfg.Services.Com = comSrv
+	cfg.Services.Com = srv
 	cfg.Apis.Grpc.Disabled = true
 	cfg.Apis.GrpcWeb.Disabled = true
 	return cfg
 }
 
+// NewStoreConfig creates a new Config with the given storage service only. By
+// default, Client API services are disabled in the returned configuration.
+func NewStoreConfig(srv config.ConfigStoreService) *config.Config {
+	cfg := config.New()
+	cfg.Services.Store = srv
+	cfg.Services.Com.Disabled = true
+	cfg.Apis.Grpc.Disabled = true
+	cfg.Apis.GrpcWeb.Disabled = true
+	return cfg
+}
+
+// CreateStoreLocation sets up a unique storage location in temp folder.
+func CreateStoreLocation(srv *config.ConfigStoreService) string {
+	dir, _ := os.MkdirTemp("", srv.Location+"-")
+	srv.Location = dir
+	return dir
+}
+
 // OpenDda creates and opens a new Dda with the configuration as returned by
 // NewConfig.
-func OpenDda(cluster string, identityName string, comSrv config.ConfigComService) (*dda.Dda, error) {
+func OpenDda(cluster string, identityName string, srv config.ConfigComService) (*dda.Dda, error) {
 	// The cluster name is configured with the Name of the passed testing.T so
 	// that DDA instances configured with this Config are isolated within the
 	// given testing context.
-	cfg := NewConfig(cluster, identityName, comSrv)
+	cfg := NewConfig(cluster, identityName, srv)
 	return OpenDdaWithConfig(cfg)
 }
 

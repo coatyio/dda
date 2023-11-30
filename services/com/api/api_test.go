@@ -25,10 +25,6 @@ func TestApi(t *testing.T) {
 		if assert.NoError(t, err) {
 			assert.Equal(t, "sta", string(scope))
 		}
-		scope, err = api.ToScope("sto")
-		if assert.NoError(t, err) {
-			assert.Equal(t, "sto", string(scope))
-		}
 		scope, err = api.ToScope("sdc")
 		if assert.NoError(t, err) {
 			assert.Equal(t, "sdc", string(scope))

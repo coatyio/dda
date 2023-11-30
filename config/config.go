@@ -5,8 +5,10 @@
 // within a DDA configuration file in YAML format.
 //
 // Note that the fields of all configuration types are not documented in code
-// but solely in the default DDA YAML configuration file located in the project
-// root folder (single source of truth).
+// but solely in the default [DDA YAML] configuration file located in the
+// project root folder (single source of truth).
+//
+// [DDA YAML]: https://github.com/coatyio/dda/blob/main/dda.yaml
 package config
 
 import (
@@ -110,9 +112,9 @@ type ConfigWebApi struct {
 // ConfigServices provides configuration options for all peripheral DDA
 // services.
 type ConfigServices struct {
-	Com ConfigComService
+	Com   ConfigComService
+	Store ConfigStoreService
 	// TODO State ConfigStateService
-	// TODO Store ConfigStoreService
 }
 
 // ConfigComService defines configuration options for a selected pub-sub
@@ -122,6 +124,7 @@ type ConfigComService struct {
 	Url      string
 	Auth     AuthOptions
 	Opts     map[string]any
+	Disabled bool
 }
 
 // AuthOptions defines authentication options for a selected pub-sub
@@ -133,6 +136,14 @@ type AuthOptions struct {
 	Verify   bool
 	Username string
 	Password string
+}
+
+// ConfigStoreService provides configuration options for a selected local
+// key-value storage.
+type ConfigStoreService struct {
+	Engine   string
+	Location string
+	Disabled bool
 }
 
 // ReadConfig reads and parses the given DDA configuration file in YAML format
@@ -188,7 +199,13 @@ func New() *Config {
 					Username: "",
 					Password: "",
 				},
-				Opts: make(map[string]any),
+				Opts:     make(map[string]any),
+				Disabled: false,
+			},
+			Store: ConfigStoreService{
+				Engine:   "pebble",
+				Location: "",
+				Disabled: true,
 			},
 		},
 	}

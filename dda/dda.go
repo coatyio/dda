@@ -13,19 +13,24 @@ import (
 	"github.com/coatyio/dda/plog"
 	"github.com/coatyio/dda/services/com"
 	comapi "github.com/coatyio/dda/services/com/api"
+	"github.com/coatyio/dda/services/store"
+	storeapi "github.com/coatyio/dda/services/store/api"
 )
 
 // comApi is a non-exposed type alias for the communication API interface.
 type comApi = comapi.Api
 
+// storeApi is a non-exposed type alias for the local storage API interface.
+type storeApi = storeapi.Api
+
 // Dda represents a Data Distribution Agent with peripheral services and public
 // client APIs. It must be created with New() to ensure that all services and
 // APIs are correctly initialized.
 type Dda struct {
-	cfg    *config.Config // agent configuration
-	comApi                // Communication API
+	cfg      *config.Config // agent configuration
+	comApi                  // Communication API
+	storeApi                // Local Storage API
 	// stateApi                 // State Management API
-	// storeApi                 // Local Storage API
 
 	grpcServer apis.ApiServer
 }
@@ -44,15 +49,26 @@ func New(cfg *config.Config) (*Dda, error) {
 	config := *cfg // copy to make it immutable inside of package
 	dda := Dda{cfg: &config}
 
-	comApi, err := com.New(config.Services.Com.Protocol)
-	if err != nil {
-		return nil, err
-	} else {
-		dda.comApi = *comApi
+	if !config.Services.Com.Disabled {
+		comApi, err := com.New(config.Services.Com.Protocol)
+		if err != nil {
+			return nil, err
+		} else {
+			dda.comApi = *comApi
+		}
 	}
 
-	if !cfg.Apis.Grpc.Disabled {
-		dda.grpcServer = grpc.New(dda.comApi)
+	if !config.Services.Store.Disabled {
+		storeApi, err := store.New(config.Services.Store.Engine)
+		if err != nil {
+			return nil, err
+		} else {
+			dda.storeApi = *storeApi
+		}
+	}
+
+	if !config.Apis.Grpc.Disabled {
+		dda.grpcServer = grpc.New(dda.comApi, dda.storeApi)
 	}
 
 	plog.Printf("Created DDA %+v", dda.Identity())
@@ -71,8 +87,16 @@ func (d *Dda) Identity() config.Identity {
 // or API completes. Specify a zero timeout to disable preliminary timeout
 // behavior.
 func (d *Dda) Open(timeout time.Duration) error {
-	if err := <-d.comApi.Open(d.cfg, timeout); err != nil {
-		return err
+	if d.comApi != nil {
+		if err := <-d.comApi.Open(d.cfg, timeout); err != nil {
+			return err
+		}
+	}
+
+	if d.storeApi != nil {
+		if err := d.storeApi.Open(d.cfg); err != nil {
+			return err
+		}
 	}
 
 	if d.grpcServer != nil {
@@ -89,9 +113,13 @@ func (d *Dda) Open(timeout time.Duration) error {
 // Close synchronously shuts down all configured DDA services and APIs
 // gracefully and releases associated resources.
 func (d *Dda) Close() {
-	<-d.comApi.Close()
-	// <-d.StateApi.Close()
-	// <-d.StoreApi.Close()
+	if d.comApi != nil {
+		<-d.comApi.Close()
+	}
+
+	if d.storeApi != nil {
+		d.storeApi.Close()
+	}
 
 	if d.grpcServer != nil {
 		d.grpcServer.Close()

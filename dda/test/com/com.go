@@ -21,9 +21,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Runs all tests on the given communication service for the given pub-sub
-// communication setup.
-func RunTestComService(t *testing.T, cluster string, comSrv config.ConfigComService, testPubSubSetup testdata.PubSubCommunicationSetup) {
+// RunTestComService runs all tests on the given communication service for the
+// given pub-sub communication setup.
+func RunTestComService(t *testing.T, cluster string, comSrv config.ConfigComService, testComSetup testdata.CommunicationSetup) {
 	cfg1 := testdata.NewConfig(cluster, "dda1", comSrv)
 
 	pub, err := testdata.OpenDda(cluster, "pub", comSrv)
@@ -243,7 +243,7 @@ func RunTestComService(t *testing.T, cluster string, comSrv config.ConfigComServ
 		// reconnect and resubscribe, may take longer than the give timespan
 		// causing the events channel to block indefinitely in the receive
 		// operation below which prevents the test from terminating.
-		testPubSubSetup[comSrv.Protocol].DisconnectBindingFunc(sub1.ComApi(), 2*time.Second)
+		testComSetup[comSrv.Protocol].DisconnectBindingFunc(sub1.ComApi(), 2*time.Second)
 
 		err = pub.PublishEvent(evt)
 		assert.NoError(t, err)
@@ -659,7 +659,7 @@ func RunTestComService(t *testing.T, cluster string, comSrv config.ConfigComServ
 
 }
 
-// Runs all benchmarks on the given communication service.
+// RunBenchComService runs all benchmarks on the given communication service.
 func RunBenchComService(b *testing.B, cluster string, comSrv config.ConfigComService) {
 	// This benchmark with setup will not be measured itself and called once for
 	// each service with b.N=1

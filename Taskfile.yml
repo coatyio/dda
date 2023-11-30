@@ -43,9 +43,9 @@ tasks:
       - gosec -quiet ./...
 
   doc:
-    desc: Serve DDA documentation locally at http://localhost:8080/github.com/coatyio/dda
+    desc: Serve DDA documentation locally at http://localhost:8090/github.com/coatyio/dda
     cmds:
-      - pkgsite -open
+      - pkgsite -open -http localhost:8090
 
   broker:
     desc: Start an MQTT 5 Broker for development purposes
@@ -102,9 +102,9 @@ tasks:
       GO_OUT: apis/grpc/stubs/golang
       GO_STUBS_PKG: github.com/coatyio/dda/{{.GO_OUT}}
       GO_OPT_MOD: module={{.GO_STUBS_PKG}}
-      GO_OPT_COM: M{{.PROTO_FILE_COM}}={{.GO_STUBS_PKG}}
-      GO_OPT_STATE: M{{.PROTO_FILE_STATE}}={{.GO_STUBS_PKG}}
-      GO_OPT_STORE: M{{.PROTO_FILE_STORE}}={{.GO_STUBS_PKG}}
+      GO_OPT_COM: M{{.PROTO_FILE_COM}}={{.GO_STUBS_PKG}}/com
+      GO_OPT_STATE: M{{.PROTO_FILE_STATE}}={{.GO_STUBS_PKG}}/state
+      GO_OPT_STORE: M{{.PROTO_FILE_STORE}}={{.GO_STUBS_PKG}}/store
       JS_OUT: apis/grpc/stubs/js
     cmds:
       - >

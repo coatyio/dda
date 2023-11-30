@@ -9,7 +9,7 @@
 // 	protoc        v4.23.3
 // source: state.proto
 
-package golang
+package state
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

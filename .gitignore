@@ -2,7 +2,8 @@
 
 # Project output
 dist/
-coverage/
+coverage/*
+!coverage/.gitkeep
 
 # Taskfile.dev
 .task/

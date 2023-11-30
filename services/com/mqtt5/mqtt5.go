@@ -53,7 +53,7 @@ var strictClientIdRegex = regexp.MustCompile("[^0-9a-zA-Z]")
 type mqttRouteFilter = api.RouteFilter[string]
 
 // Mqtt5Binding realizes a communication protocol binding for MQTT v5 by
-// implementing interface api.Api.
+// implementing the communication API interface.
 type Mqtt5Binding struct {
 	mu                 sync.RWMutex // protects following fields
 	eventRouter        *api.Router[api.Event, string]
@@ -106,7 +106,7 @@ func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) <-chan er
 		return ch
 	}
 
-	plog.Printf("Open MQTT5 binding connecting to %s...\n", ccfg.BrokerUrls[0])
+	plog.Printf("Open MQTT5 communication binding connecting to %s...\n", ccfg.BrokerUrls[0])
 
 	// Note that we cannot use a context.WithTimeout for NewConnection as
 	// autopaho disconnects as soon as the passed context is canceled, i.e. when
@@ -157,6 +157,8 @@ func (b *Mqtt5Binding) Close() (done <-chan struct{}) {
 	_ = b.conn.Disconnect(ctx)
 
 	b.conn = nil
+
+	plog.Printf("Closed MQTT5 communication binding\n")
 
 	return ch
 }

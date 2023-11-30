@@ -13,11 +13,13 @@ import (
 	"sync"
 
 	"github.com/coatyio/dda/apis"
-	stubs "github.com/coatyio/dda/apis/grpc/stubs/golang"
+	"github.com/coatyio/dda/apis/grpc/stubs/golang/com"
+	"github.com/coatyio/dda/apis/grpc/stubs/golang/store"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/plog"
 	"github.com/coatyio/dda/services"
 	comapi "github.com/coatyio/dda/services/com/api"
+	storeapi "github.com/coatyio/dda/services/store/api"
 	"github.com/google/uuid"
 	rpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -33,10 +35,12 @@ var metadata_dda_suback = metadata.Pairs("dda-suback", "OK")
 // gRPC and gRPC-Web clients. grpcServer implements the apis.ApiServer interface
 // and all the ServiceServer interfaces of the generated gRPC stubs.
 type grpcServer struct {
-	stubs.UnimplementedComServiceServer
+	com.UnimplementedComServiceServer
 	comApi comapi.Api
-	mu     sync.RWMutex // protects following fields
-	srv    *rpc.Server
+	store.UnimplementedStoreServiceServer
+	storeApi storeapi.Api
+	mu       sync.RWMutex // protects following fields
+	srv      *rpc.Server
 	grpcWebServer
 	actionCallbacks map[string]comapi.ActionCallback
 	queryCallbacks  map[string]comapi.QueryCallback
@@ -45,9 +49,10 @@ type grpcServer struct {
 // New returns an apis.ApiServer interface that implements an uninitialized gRPC
 // server exposing the peripheral DDA services to gRPC and gRPC-Web clients. To
 // start the returned server, invoke Open with a gRPC-enabled DDA configuration.
-func New(com comapi.Api) apis.ApiServer {
+func New(com comapi.Api, store storeapi.Api) apis.ApiServer {
 	return &grpcServer{
 		comApi:          com,
+		storeApi:        store,
 		actionCallbacks: make(map[string]comapi.ActionCallback),
 		queryCallbacks:  make(map[string]comapi.QueryCallback),
 	}
@@ -86,7 +91,8 @@ func (s *grpcServer) Open(cfg *config.Config) error {
 		}))
 
 		s.srv = rpc.NewServer(srvOpts...)
-		stubs.RegisterComServiceServer(s.srv, s)
+		com.RegisterComServiceServer(s.srv, s)
+		store.RegisterStoreServiceServer(s.srv, s)
 
 		plog.Printf("Open gRPC server listening on address %s...\n", address)
 
@@ -136,7 +142,12 @@ func (s *grpcServer) Close() {
 	}
 }
 
-func (s *grpcServer) PublishEvent(ctx context.Context, event *stubs.Event) (*stubs.Ack, error) {
+// Com Api
+
+func (s *grpcServer) PublishEvent(ctx context.Context, event *com.Event) (*com.Ack, error) {
+	if s.comApi == nil {
+		return nil, s.serviceDisabledError("com")
+	}
 	if err := s.comApi.PublishEvent(comapi.Event{
 		Type:            event.GetType(),
 		Id:              event.GetId(),
@@ -150,10 +161,14 @@ func (s *grpcServer) PublishEvent(ctx context.Context, event *stubs.Event) (*stu
 		return nil, err
 	}
 
-	return &stubs.Ack{}, nil
+	return &com.Ack{}, nil
 }
 
-func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeEventServer) error {
+func (s *grpcServer) SubscribeEvent(filter *com.SubscriptionFilter, stream com.ComService_SubscribeEventServer) error {
+	if s.comApi == nil {
+		return s.serviceDisabledError("com")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -184,7 +199,7 @@ func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stu
 				// End stream if channel has been closed by communication service.
 				return nil
 			}
-			if err := stream.Send(&stubs.Event{
+			if err := stream.Send(&com.Event{
 				Type:            evt.Type,
 				Id:              evt.Id,
 				Source:          evt.Source,
@@ -201,7 +216,11 @@ func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stu
 	}
 }
 
-func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService_PublishActionServer) error {
+func (s *grpcServer) PublishAction(action *com.Action, stream com.ComService_PublishActionServer) error {
+	if s.comApi == nil {
+		return s.serviceDisabledError("com")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -235,7 +254,7 @@ func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService
 				// End stream if channel has been closed by communication service.
 				return nil
 			}
-			if err := stream.Send(&stubs.ActionResult{
+			if err := stream.Send(&com.ActionResult{
 				Context:         res.Context,
 				Data:            res.Data,
 				DataContentType: res.DataContentType,
@@ -250,7 +269,11 @@ func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService
 	}
 }
 
-func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeActionServer) error {
+func (s *grpcServer) SubscribeAction(filter *com.SubscriptionFilter, stream com.ComService_SubscribeActionServer) error {
+	if s.comApi == nil {
+		return s.serviceDisabledError("com")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -285,8 +308,8 @@ func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream st
 			s.mu.Lock()
 			s.actionCallbacks[cid] = act.Callback
 			s.mu.Unlock()
-			if err := stream.Send(&stubs.ActionCorrelated{
-				Action: &stubs.Action{
+			if err := stream.Send(&com.ActionCorrelated{
+				Action: &com.Action{
 					Type:            act.Type,
 					Id:              act.Id,
 					Source:          act.Source,
@@ -304,7 +327,11 @@ func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream st
 	}
 }
 
-func (s *grpcServer) PublishActionResult(ctx context.Context, result *stubs.ActionResultCorrelated) (*stubs.Ack, error) {
+func (s *grpcServer) PublishActionResult(ctx context.Context, result *com.ActionResultCorrelated) (*com.Ack, error) {
+	if s.comApi == nil {
+		return nil, s.serviceDisabledError("com")
+	}
+
 	s.mu.RLock()
 	cb, ok := s.actionCallbacks[result.GetCorrelationId()]
 	s.mu.RUnlock()
@@ -332,10 +359,14 @@ func (s *grpcServer) PublishActionResult(ctx context.Context, result *stubs.Acti
 		return nil, err
 	}
 
-	return &stubs.Ack{}, nil
+	return &com.Ack{}, nil
 }
 
-func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_PublishQueryServer) error {
+func (s *grpcServer) PublishQuery(query *com.Query, stream com.ComService_PublishQueryServer) error {
+	if s.comApi == nil {
+		return s.serviceDisabledError("com")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -369,7 +400,7 @@ func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_Pu
 				// End stream if channel has been closed by communication service.
 				return nil
 			}
-			if err := stream.Send(&stubs.QueryResult{
+			if err := stream.Send(&com.QueryResult{
 				Context:         res.Context,
 				Data:            res.Data,
 				DataContentType: res.DataContentType,
@@ -384,7 +415,11 @@ func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_Pu
 	}
 }
 
-func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeQueryServer) error {
+func (s *grpcServer) SubscribeQuery(filter *com.SubscriptionFilter, stream com.ComService_SubscribeQueryServer) error {
+	if s.comApi == nil {
+		return s.serviceDisabledError("com")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -419,8 +454,8 @@ func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stu
 			s.mu.Lock()
 			s.queryCallbacks[cid] = qry.Callback
 			s.mu.Unlock()
-			if err := stream.Send(&stubs.QueryCorrelated{
-				Query: &stubs.Query{
+			if err := stream.Send(&com.QueryCorrelated{
+				Query: &com.Query{
 					Type:            qry.Type,
 					Id:              qry.Id,
 					Source:          qry.Source,
@@ -438,7 +473,11 @@ func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stu
 	}
 }
 
-func (s *grpcServer) PublishQueryResult(ctx context.Context, result *stubs.QueryResultCorrelated) (*stubs.Ack, error) {
+func (s *grpcServer) PublishQueryResult(ctx context.Context, result *com.QueryResultCorrelated) (*com.Ack, error) {
+	if s.comApi == nil {
+		return nil, s.serviceDisabledError("com")
+	}
+
 	s.mu.RLock()
 	cb, ok := s.queryCallbacks[result.GetCorrelationId()]
 	s.mu.RUnlock()
@@ -466,7 +505,138 @@ func (s *grpcServer) PublishQueryResult(ctx context.Context, result *stubs.Query
 		return nil, err
 	}
 
-	return &stubs.Ack{}, nil
+	return &com.Ack{}, nil
+}
+
+// Store API
+
+func (s *grpcServer) Get(ctx context.Context, key *store.Key) (*store.Value, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	val, err := s.storeApi.Get(key.GetKey())
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	if val == nil {
+		return &store.Value{}, nil // non-existing store key not explicit present
+	}
+	return &store.Value{Value: val}, nil
+}
+
+func (s *grpcServer) Set(ctx context.Context, kv *store.KeyValue) (*store.Ack, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	err := s.storeApi.Set(kv.GetKey(), kv.GetValue())
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &store.Ack{}, nil
+}
+
+func (s *grpcServer) Delete(ctx context.Context, key *store.Key) (*store.Ack, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	err := s.storeApi.Delete(key.GetKey())
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &store.Ack{}, nil
+}
+
+func (s *grpcServer) DeleteAll(ctx context.Context, p *store.DeleteAllParams) (*store.Ack, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	err := s.storeApi.DeleteAll()
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &store.Ack{}, nil
+}
+
+func (s *grpcServer) DeleteRange(ctx context.Context, r *store.Range) (*store.Ack, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	err := s.storeApi.DeleteRange(r.GetStart(), r.GetEnd())
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &store.Ack{}, nil
+}
+
+func (s *grpcServer) ScanPrefix(key *store.Key, stream store.StoreService_ScanPrefixServer) error {
+	if s.storeApi == nil {
+		return s.serviceDisabledError("store")
+	}
+	err := s.storeApi.ScanPrefix(key.GetKey(), func(key string, value []byte) error {
+		select {
+		case <-stream.Context().Done(): // stop scanning if server streaming call canceled by client
+			return stream.Context().Err()
+		default:
+		}
+		err := stream.Send(&store.KeyValue{
+			Key:   key,
+			Value: value,
+		})
+		if err != nil {
+			plog.Println(err) // stop scanning on first failure
+		}
+		return err
+	})
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+	}
+	return err
+}
+
+func (s *grpcServer) ScanRange(r *store.Range, stream store.StoreService_ScanRangeServer) error {
+	if s.storeApi == nil {
+		return s.serviceDisabledError("store")
+	}
+	err := s.storeApi.ScanRange(r.GetStart(), r.GetEnd(), func(key string, value []byte) error {
+		select {
+		case <-stream.Context().Done(): // stop scanning if server streaming call canceled by client
+			return stream.Context().Err()
+		default:
+		}
+		err := stream.Send(&store.KeyValue{
+			Key:   key,
+			Value: value,
+		})
+		if err != nil {
+			plog.Println(err) // stop scanning on first failure
+		}
+		return err
+	})
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+	}
+	return err
+}
+
+// Utils
+
+func (s *grpcServer) serviceDisabledError(srv string) error {
+	err := services.RetryableErrorf("service %s is disabled", srv)
+	err = status.Errorf(s.codeByError(err), "failed: %v", err)
+	plog.Println(err)
+	return err
 }
 
 func (s *grpcServer) codeByError(err error) codes.Code {

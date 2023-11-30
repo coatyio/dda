@@ -34,7 +34,6 @@ const (
 	ScopeDef         Scope = ""    // Default scope (ScopeCom)
 	ScopeCom         Scope = "com" // Communication scope
 	ScopeState       Scope = "sta" // Distributed state management scope
-	ScopeStore       Scope = "sto" // Local storage scope
 	ScopeSideChannel Scope = "sdc" // Side channel scope
 )
 
@@ -47,8 +46,6 @@ func ToScope(scope string) (Scope, error) {
 		return ScopeCom, nil
 	case string(ScopeState):
 		return ScopeState, nil
-	case string(ScopeStore):
-		return ScopeStore, nil
 	case string(ScopeSideChannel):
 		return ScopeSideChannel, nil
 	default:
@@ -65,8 +62,8 @@ func ToScope(scope string) (Scope, error) {
 // is described in a common way adhering closely to the CloudEvents
 // specification.
 //
-// Note that Api implementations are meant to be thread-safe and Api interface
-// methods may be run on concurrent goroutines.
+// Note that Api implementations are meant to be thread-safe and individual Api
+// interface methods may be run on concurrent goroutines.
 type Api interface {
 
 	// Open asynchronously connects to the communication network of the

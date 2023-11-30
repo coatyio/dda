@@ -223,6 +223,13 @@ container:
 docker run --rm -p 8800:8800 -p 8900:8900 -v /path-to-config-folder:/dda ghcr.io/coatyio/dda:<release-version>
 ```
 
+> __NOTE__: In a containerized DDA sidecar that makes use of the local
+> persistent storage service use a volume or a bind mount and specify a
+> destination path that corresponds with the storage location configured in the
+> DDA configuration file. You may also simply reuse the DDA configuration mount
+> point `/dda`, e.g. using `/dda/store` as storage location inside the
+> container.
+
 ## Examples
 
 This project is accompanied by

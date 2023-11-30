@@ -33,10 +33,10 @@ var testServices = map[string]config.ConfigComService{
 	},
 }
 
-var testPubSubSetup = make(testdata.PubSubCommunicationSetup)
+var testComSetup = make(testdata.CommunicationSetup)
 
 func init() {
-	testPubSubSetup["mqtt5"] = &testdata.PubSubSetupOptions{
+	testComSetup["mqtt5"] = &testdata.CommunicationSetupOptions{
 		SetupOpts: map[string]any{
 			"brokerPort":          1901,
 			"brokerWsPort":        0, // WebSocket connection setup not needed
@@ -49,24 +49,24 @@ func init() {
 }
 
 func TestMain(m *testing.M) {
-	testdata.RunMainWithSetup(m, testPubSubSetup)
+	testdata.RunMainWithComSetup(m, testComSetup)
 }
 
-func TestDda(t *testing.T) {
+func TestCom(t *testing.T) {
 	for name, srv := range testServices {
 		t.Run(name, func(t *testing.T) {
-			com.RunTestComService(t, name, srv, testPubSubSetup)
+			com.RunTestComService(t, name, srv, testComSetup)
 		})
 	}
 }
 
-func BenchmarkDda(b *testing.B) {
+func BenchmarkCom(b *testing.B) {
 	// This benchmark with setup will not be measured itself and called once
 	// with b.N=1
 
 	for name, srv := range testServices {
-		// This benchmark with setup will not be measured itself and called once
-		// with b.N=1
+		// This subbenchmark with setup will not be measured itself and called
+		// once with b.N=1
 		b.Run(name, func(b *testing.B) {
 			com.RunBenchComService(b, name, srv)
 		})

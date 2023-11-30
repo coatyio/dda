@@ -35,8 +35,9 @@ identity:
 # If not present, default cluster name is "dda".
 cluster:
 
-# Server-side configuration of public DDA Client APIs.
+# Server-side configuration of public peripheral DDA Client APIs.
 apis:
+  # DDA gRPC service.
   grpc:
     # gRPC server address of gRPC API. When run inside Docker the port of the
     # given address must be exposed/mapped to the host system.
@@ -58,7 +59,7 @@ apis:
     # If not present, default address string is ":8900".
     address:
 
-    # Indicates whether this API server should be disabled within the DDA.
+    # Indicates whether this API service should be disabled within the DDA.
     # Specify true to opt out from exposing this API service in your DDA. This
     # is useful if you embed the DDA as a library in your client application.
     #
@@ -83,6 +84,7 @@ apis:
     # units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
     keepalive:
 
+  # DDA gRPC-Web service.
   grpc-web:
     # gRPC-Web server address of gRPC-Web API. When run inside Docker the port
     # of the given address must be exposed/mapped to the host system.
@@ -105,7 +107,7 @@ apis:
     # [https://example.org,https://awesome.com:4200]
     access-control-allow-origin:
 
-    # Indicates whether this API server should be disabled within the DDA.
+    # Indicates whether this API service should be disabled within the DDA.
     # Specify true to opt out from exposing this API service in your DDA. This
     # is useful if you embed the DDA as a library in your client application.
     #
@@ -234,3 +236,45 @@ services:
     #   connectTimeout - millis to wait for the connection process to complete (defaults to 10000)
     #   noLocal - if true, publications are not forwarded to the originating MQTT client (defaults to false)
     opts:
+
+    # Indicates whether this service should be disabled within the DDA. Specify
+    # true to opt out from exposing this service in your DDA.
+    #
+    # If not present, defaults to false.
+    disabled:
+
+  # Local persistent or in-memory key-value storage service for a single DDA
+  # sidecar or instance.
+  store:
+    # The underlying storage engine to use. One of: "pebble".
+    #
+    # - pebble: a performance-optimized embedded storage engine based on LSM
+    #   with WAL. Storage is represented either as a directory with multiple
+    #   files on disk or as a non-persistent in-memory store.
+    #
+    # If not present, "pebble" is used by default.
+    engine:
+
+    # Location where data is stored on a local file system. In a containerized
+    # DDA sidecar use a volume or a bind mount and specify a destination path
+    # that corresponds with this storage location.
+    #
+    # The specified location is specific to the configured storage engine:
+    #
+    # - pebble: a directory given by an absolute pathname or a pathname relative
+    #   to the working directory of the DDA sidecar or instance, or an empty
+    #   string to indicate that the store is non-persistent and completely
+    #   memory-backed as long as the DDA sidecar is running. If the specified
+    #   storage directory doesn't exist, it and its parent directories are
+    #   created by the storage service.
+    #
+    # If not present, a storage engine specific default is used:
+    #
+    # - pebble: "" (in-memory storage)
+    location:
+
+    # Indicates whether this service should be disabled within the DDA. Specify
+    # true to opt out from exposing this service in your DDA.
+    #
+    # If not present, defaults to true.
+    disabled:
