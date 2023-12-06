@@ -37,7 +37,6 @@ jobs:
           go install github.com/go-task/task/v3/cmd/task@latest
           task install
           task lint
-          mkdir coverage
           task cover
           cp -r docs/. coverage
       - uses: awalsh128/cache-apt-pkgs-action@latest
