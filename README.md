@@ -276,7 +276,7 @@ and to install DDA module dependencies.
 All build, test, and release related tasks can be performed using the Task tool.
 For a list of available tasks, run `task`.
 
-> __Note__: If you intend to make changes to Protobuf service definitions,
+> __NOTE__: If you intend to make changes to Protobuf service definitions,
 > install the latest release of the [Protobuf
 > compiler](https://grpc.io/docs/protoc-installation/#install-pre-compiled-binaries-any-os)
 > and include the path to the `protoc` program under `bin` directory in your
