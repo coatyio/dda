@@ -55,25 +55,29 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/coatyio/dda/apis/grpc/grpc.go (80.9%)</option>
+				<option value="file0">github.com/coatyio/dda/apis/grpc/grpc.go (80.2%)</option>
 				
 				<option value="file1">github.com/coatyio/dda/apis/grpc/grpcweb.go (92.5%)</option>
 				
 				<option value="file2">github.com/coatyio/dda/config/config.go (95.0%)</option>
 				
-				<option value="file3">github.com/coatyio/dda/dda/dda.go (100.0%)</option>
+				<option value="file3">github.com/coatyio/dda/dda/dda.go (94.6%)</option>
 				
 				<option value="file4">github.com/coatyio/dda/dda/dda_internal.go (100.0%)</option>
 				
 				<option value="file5">github.com/coatyio/dda/services/com/api/api.go (100.0%)</option>
 				
-				<option value="file6">github.com/coatyio/dda/services/com/api/router.go (97.4%)</option>
+				<option value="file6">github.com/coatyio/dda/services/com/api/router.go (94.9%)</option>
 				
 				<option value="file7">github.com/coatyio/dda/services/com/com.go (100.0%)</option>
 				
-				<option value="file8">github.com/coatyio/dda/services/com/mqtt5/mqtt5.go (90.3%)</option>
+				<option value="file8">github.com/coatyio/dda/services/com/mqtt5/mqtt5.go (89.7%)</option>
 				
 				<option value="file9">github.com/coatyio/dda/services/services.go (100.0%)</option>
+				
+				<option value="file10">github.com/coatyio/dda/services/store/pebble/pebble.go (79.6%)</option>
+				
+				<option value="file11">github.com/coatyio/dda/services/store/store.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -111,11 +115,13 @@ import (
         "sync"
 
         "github.com/coatyio/dda/apis"
-        stubs "github.com/coatyio/dda/apis/grpc/stubs/golang"
+        "github.com/coatyio/dda/apis/grpc/stubs/golang/com"
+        "github.com/coatyio/dda/apis/grpc/stubs/golang/store"
         "github.com/coatyio/dda/config"
         "github.com/coatyio/dda/plog"
         "github.com/coatyio/dda/services"
         comapi "github.com/coatyio/dda/services/com/api"
+        storeapi "github.com/coatyio/dda/services/store/api"
         "github.com/google/uuid"
         rpc "google.golang.org/grpc"
         "google.golang.org/grpc/codes"
@@ -131,10 +137,12 @@ var metadata_dda_suback = metadata.Pairs("dda-suback", "OK")
 // gRPC and gRPC-Web clients. grpcServer implements the apis.ApiServer interface
 // and all the ServiceServer interfaces of the generated gRPC stubs.
 type grpcServer struct {
-        stubs.UnimplementedComServiceServer
+        com.UnimplementedComServiceServer
         comApi comapi.Api
-        mu     sync.RWMutex // protects following fields
-        srv    *rpc.Server
+        store.UnimplementedStoreServiceServer
+        storeApi storeapi.Api
+        mu       sync.RWMutex // protects following fields
+        srv      *rpc.Server
         grpcWebServer
         actionCallbacks map[string]comapi.ActionCallback
         queryCallbacks  map[string]comapi.QueryCallback
@@ -143,9 +151,10 @@ type grpcServer struct {
 // New returns an apis.ApiServer interface that implements an uninitialized gRPC
 // server exposing the peripheral DDA services to gRPC and gRPC-Web clients. To
 // start the returned server, invoke Open with a gRPC-enabled DDA configuration.
-func New(com comapi.Api) apis.ApiServer <span class="cov6" title="8">{
+func New(com comapi.Api, store storeapi.Api) apis.ApiServer <span class="cov7" title="18">{
         return &amp;grpcServer{
                 comApi:          com,
+                storeApi:        store,
                 actionCallbacks: make(map[string]comapi.ActionCallback),
                 queryCallbacks:  make(map[string]comapi.QueryCallback),
         }
@@ -155,23 +164,23 @@ func New(com comapi.Api) apis.ApiServer <span class="cov6" title="8">{
 // credentials that accepts client requests over gRPC/gRPC-Web on the configured
 // addresses. In case of gRPC connections supported protocols include TCP and
 // Unix domain sockets.
-func (s *grpcServer) Open(cfg *config.Config) error <span class="cov6" title="8">{
+func (s *grpcServer) Open(cfg *config.Config) error <span class="cov7" title="18">{
         address := cfg.Apis.Grpc.Address
 
         s.mu.Lock()
         defer s.mu.Unlock()
 
-        if s.srv == nil </span><span class="cov6" title="8">{
+        if s.srv == nil </span><span class="cov7" title="18">{
 
                 // Set up gRPC server.
 
                 srvOpts := []rpc.ServerOption{}
-                if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov5" title="5">{
+                if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov6" title="10">{
                         creds, err := credentials.NewServerTLSFromFile(cfg.Apis.Cert, cfg.Apis.Key)
-                        if err != nil </span><span class="cov2" title="2">{
+                        if err != nil </span><span class="cov4" title="4">{
                                 return err
                         }</span>
-                        <span class="cov3" title="3">srvOpts = append(srvOpts, rpc.Creds(creds))</span>
+                        <span class="cov5" title="6">srvOpts = append(srvOpts, rpc.Creds(creds))</span>
                 }
 
                 // Use configurable values for Keepalive Server Parameters.
@@ -179,12 +188,13 @@ func (s *grpcServer) Open(cfg *config.Config) error <span class="cov6" title="8"
                 // https://pkg.go.dev/google.golang.org/grpc/keepalive
                 // https://grpc.io/docs/guides/keepalive/
                 // https://github.com/grpc/grpc-go/blob/v1.53.0/Documentation/keepalive.md
-                <span class="cov5" title="6">srvOpts = append(srvOpts, rpc.KeepaliveParams(keepalive.ServerParameters{
+                <span class="cov6" title="14">srvOpts = append(srvOpts, rpc.KeepaliveParams(keepalive.ServerParameters{
                         Time: cfg.Apis.Grpc.Keepalive,
                 }))
 
                 s.srv = rpc.NewServer(srvOpts...)
-                stubs.RegisterComServiceServer(s.srv, s)
+                com.RegisterComServiceServer(s.srv, s)
+                store.RegisterStoreServiceServer(s.srv, s)
 
                 plog.Printf("Open gRPC server listening on address %s...\n", address)
 
@@ -200,12 +210,12 @@ func (s *grpcServer) Open(cfg *config.Config) error <span class="cov6" title="8"
                         }</span>
                 }
 
-                <span class="cov5" title="6">lis, err := net.Listen(protocol, address)
+                <span class="cov6" title="14">lis, err := net.Listen(protocol, address)
                 if err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
 
-                <span class="cov5" title="6">go s.srv.Serve(lis)
+                <span class="cov6" title="14">go s.srv.Serve(lis)
 
                 return s.openWebServer(s.srv, cfg)</span>
         }
@@ -216,43 +226,52 @@ func (s *grpcServer) Open(cfg *config.Config) error <span class="cov6" title="8"
 // Close stops the gRPC server, canceling all active RPCs on the server side,
 // and closing all open connections. Pending RPCs on the client side will get
 // notified by connection errors.
-func (s *grpcServer) Close() <span class="cov5" title="6">{
+func (s *grpcServer) Close() <span class="cov6" title="14">{
         s.mu.Lock()
         defer s.mu.Unlock()
 
-        if s.srv != nil </span><span class="cov5" title="6">{
+        if s.srv != nil </span><span class="cov6" title="14">{
                 s.srv.Stop()
                 s.srv = nil
                 s.closeWebServer()
                 for k := range s.actionCallbacks </span><span class="cov2" title="2">{
                         delete(s.actionCallbacks, k)
                 }</span>
-                <span class="cov5" title="6">for k := range s.queryCallbacks </span><span class="cov2" title="2">{
+                <span class="cov6" title="14">for k := range s.queryCallbacks </span><span class="cov2" title="2">{
                         delete(s.queryCallbacks, k)
                 }</span>
-                <span class="cov5" title="6">plog.Println("Closed gRPC server")</span>
+                <span class="cov6" title="14">plog.Println("Closed gRPC server")</span>
         }
 }
 
-func (s *grpcServer) PublishEvent(ctx context.Context, event *stubs.Event) (*stubs.Ack, error) <span class="cov7" title="10">{
-        if err := s.comApi.PublishEvent(comapi.Event{
+// Com Api
+
+func (s *grpcServer) PublishEvent(ctx context.Context, event *com.Event) (*com.Ack, error) <span class="cov6" title="12">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return nil, s.serviceDisabledError("com")
+        }</span>
+        <span class="cov6" title="10">if err := s.comApi.PublishEvent(comapi.Event{
                 Type:            event.GetType(),
                 Id:              event.GetId(),
                 Source:          event.GetSource(),
                 Time:            event.GetTime(),
                 Data:            event.GetData(),
                 DataContentType: event.GetDataContentType(),
-        }); err != nil </span><span class="cov6" title="8">{
+        }); err != nil </span><span class="cov5" title="8">{
                 err = status.Errorf(s.codeByError(err), "failed publishing Event: %v", err)
                 plog.Println(err)
                 return nil, err
         }</span>
 
-        <span class="cov2" title="2">return &amp;stubs.Ack{}, nil</span>
+        <span class="cov2" title="2">return &amp;com.Ack{}, nil</span>
 }
 
-func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeEventServer) error <span class="cov6" title="8">{
-        ctx, cancel := context.WithCancel(context.Background())
+func (s *grpcServer) SubscribeEvent(filter *com.SubscriptionFilter, stream com.ComService_SubscribeEventServer) error <span class="cov6" title="10">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov5" title="8">ctx, cancel := context.WithCancel(context.Background())
         defer cancel()
 
         evts, err := s.comApi.SubscribeEvent(ctx, comapi.SubscriptionFilter{
@@ -275,14 +294,14 @@ func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stu
                 return err
         }</span>
 
-        <span class="cov5" title="6">for </span><span class="cov7" title="12">{
+        <span class="cov5" title="6">for </span><span class="cov6" title="12">{
                 select </span>{
                 case evt, ok := &lt;-evts:<span class="cov5" title="6">
                         if !ok </span><span class="cov0" title="0">{
                                 // End stream if channel has been closed by communication service.
                                 return nil
                         }</span>
-                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.Event{
+                        <span class="cov5" title="6">if err := stream.Send(&amp;com.Event{
                                 Type:            evt.Type,
                                 Id:              evt.Id,
                                 Source:          evt.Source,
@@ -299,8 +318,12 @@ func (s *grpcServer) SubscribeEvent(filter *stubs.SubscriptionFilter, stream stu
         }
 }
 
-func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService_PublishActionServer) error <span class="cov7" title="12">{
-        ctx, cancel := context.WithCancel(context.Background())
+func (s *grpcServer) PublishAction(action *com.Action, stream com.ComService_PublishActionServer) error <span class="cov6" title="14">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov6" title="12">ctx, cancel := context.WithCancel(context.Background())
         defer cancel()
 
         results, err := s.comApi.PublishAction(ctx, comapi.Action{
@@ -310,7 +333,7 @@ func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService
                 Params:          action.GetParams(),
                 DataContentType: action.GetDataContentType(),
         })
-        if err != nil </span><span class="cov6" title="8">{
+        if err != nil </span><span class="cov5" title="8">{
                 err = status.Errorf(s.codeByError(err), "failed publishing Action: %v", err)
                 plog.Println(err)
                 return err
@@ -326,14 +349,14 @@ func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService
                 return err
         }</span>
 
-        <span class="cov4" title="4">for </span><span class="cov7" title="10">{
+        <span class="cov4" title="4">for </span><span class="cov6" title="10">{
                 select </span>{
                 case res, ok := &lt;-results:<span class="cov5" title="6">
                         if !ok </span><span class="cov0" title="0">{
                                 // End stream if channel has been closed by communication service.
                                 return nil
                         }</span>
-                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.ActionResult{
+                        <span class="cov5" title="6">if err := stream.Send(&amp;com.ActionResult{
                                 Context:         res.Context,
                                 Data:            res.Data,
                                 DataContentType: res.DataContentType,
@@ -348,8 +371,12 @@ func (s *grpcServer) PublishAction(action *stubs.Action, stream stubs.ComService
         }
 }
 
-func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeActionServer) error <span class="cov5" title="6">{
-        ctx, cancel := context.WithCancel(context.Background())
+func (s *grpcServer) SubscribeAction(filter *com.SubscriptionFilter, stream com.ComService_SubscribeActionServer) error <span class="cov5" title="8">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov5" title="6">ctx, cancel := context.WithCancel(context.Background())
         defer cancel()
 
         acts, err := s.comApi.SubscribeAction(ctx, comapi.SubscriptionFilter{
@@ -372,7 +399,7 @@ func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream st
                 return err
         }</span>
 
-        <span class="cov4" title="4">for </span><span class="cov6" title="8">{
+        <span class="cov4" title="4">for </span><span class="cov5" title="8">{
                 select </span>{
                 case act, ok := &lt;-acts:<span class="cov4" title="4">
                         if !ok </span><span class="cov0" title="0">{
@@ -383,8 +410,8 @@ func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream st
                         s.mu.Lock()
                         s.actionCallbacks[cid] = act.Callback
                         s.mu.Unlock()
-                        if err := stream.Send(&amp;stubs.ActionCorrelated{
-                                Action: &amp;stubs.Action{
+                        if err := stream.Send(&amp;com.ActionCorrelated{
+                                Action: &amp;com.Action{
                                         Type:            act.Type,
                                         Id:              act.Id,
                                         Source:          act.Source,
@@ -402,8 +429,12 @@ func (s *grpcServer) SubscribeAction(filter *stubs.SubscriptionFilter, stream st
         }
 }
 
-func (s *grpcServer) PublishActionResult(ctx context.Context, result *stubs.ActionResultCorrelated) (*stubs.Ack, error) <span class="cov6" title="8">{
-        s.mu.RLock()
+func (s *grpcServer) PublishActionResult(ctx context.Context, result *com.ActionResultCorrelated) (*com.Ack, error) <span class="cov6" title="10">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return nil, s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov5" title="8">s.mu.RLock()
         cb, ok := s.actionCallbacks[result.GetCorrelationId()]
         s.mu.RUnlock()
         if !ok </span><span class="cov2" title="2">{
@@ -430,11 +461,15 @@ func (s *grpcServer) PublishActionResult(ctx context.Context, result *stubs.Acti
                 return nil, err
         }</span>
 
-        <span class="cov5" title="6">return &amp;stubs.Ack{}, nil</span>
+        <span class="cov5" title="6">return &amp;com.Ack{}, nil</span>
 }
 
-func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_PublishQueryServer) error <span class="cov7" title="12">{
-        ctx, cancel := context.WithCancel(context.Background())
+func (s *grpcServer) PublishQuery(query *com.Query, stream com.ComService_PublishQueryServer) error <span class="cov6" title="14">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov6" title="12">ctx, cancel := context.WithCancel(context.Background())
         defer cancel()
 
         results, err := s.comApi.PublishQuery(ctx, comapi.Query{
@@ -444,7 +479,7 @@ func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_Pu
                 Data:            query.GetData(),
                 DataContentType: query.GetDataContentType(),
         })
-        if err != nil </span><span class="cov6" title="8">{
+        if err != nil </span><span class="cov5" title="8">{
                 err = status.Errorf(s.codeByError(err), "failed publishing Query: %v", err)
                 plog.Println(err)
                 return err
@@ -460,14 +495,14 @@ func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_Pu
                 return err
         }</span>
 
-        <span class="cov4" title="4">for </span><span class="cov7" title="10">{
+        <span class="cov4" title="4">for </span><span class="cov6" title="10">{
                 select </span>{
                 case res, ok := &lt;-results:<span class="cov5" title="6">
                         if !ok </span><span class="cov0" title="0">{
                                 // End stream if channel has been closed by communication service.
                                 return nil
                         }</span>
-                        <span class="cov5" title="6">if err := stream.Send(&amp;stubs.QueryResult{
+                        <span class="cov5" title="6">if err := stream.Send(&amp;com.QueryResult{
                                 Context:         res.Context,
                                 Data:            res.Data,
                                 DataContentType: res.DataContentType,
@@ -482,8 +517,12 @@ func (s *grpcServer) PublishQuery(query *stubs.Query, stream stubs.ComService_Pu
         }
 }
 
-func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stubs.ComService_SubscribeQueryServer) error <span class="cov5" title="6">{
-        ctx, cancel := context.WithCancel(context.Background())
+func (s *grpcServer) SubscribeQuery(filter *com.SubscriptionFilter, stream com.ComService_SubscribeQueryServer) error <span class="cov5" title="8">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov5" title="6">ctx, cancel := context.WithCancel(context.Background())
         defer cancel()
 
         qrys, err := s.comApi.SubscribeQuery(ctx, comapi.SubscriptionFilter{
@@ -501,12 +540,12 @@ func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stu
         // race conditions with subsequent code that indirectly triggers a remote
         // publication on the subscription which can be lost if the subscription has
         // not yet been fully established by the pub-sub infrastructure.
-        <span class="cov4" title="4">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
+        <span class="cov3" title="3">if err := stream.SendHeader(metadata_dda_suback); err != nil </span><span class="cov0" title="0">{
                 plog.Println(err)
                 return err
         }</span>
 
-        <span class="cov4" title="4">for </span><span class="cov6" title="8">{
+        <span class="cov4" title="4">for </span><span class="cov5" title="8">{
                 select </span>{
                 case qry, ok := &lt;-qrys:<span class="cov4" title="4">
                         if !ok </span><span class="cov0" title="0">{
@@ -517,8 +556,8 @@ func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stu
                         s.mu.Lock()
                         s.queryCallbacks[cid] = qry.Callback
                         s.mu.Unlock()
-                        if err := stream.Send(&amp;stubs.QueryCorrelated{
-                                Query: &amp;stubs.Query{
+                        if err := stream.Send(&amp;com.QueryCorrelated{
+                                Query: &amp;com.Query{
                                         Type:            qry.Type,
                                         Id:              qry.Id,
                                         Source:          qry.Source,
@@ -536,8 +575,12 @@ func (s *grpcServer) SubscribeQuery(filter *stubs.SubscriptionFilter, stream stu
         }
 }
 
-func (s *grpcServer) PublishQueryResult(ctx context.Context, result *stubs.QueryResultCorrelated) (*stubs.Ack, error) <span class="cov6" title="8">{
-        s.mu.RLock()
+func (s *grpcServer) PublishQueryResult(ctx context.Context, result *com.QueryResultCorrelated) (*com.Ack, error) <span class="cov6" title="10">{
+        if s.comApi == nil </span><span class="cov2" title="2">{
+                return nil, s.serviceDisabledError("com")
+        }</span>
+
+        <span class="cov5" title="8">s.mu.RLock()
         cb, ok := s.queryCallbacks[result.GetCorrelationId()]
         s.mu.RUnlock()
         if !ok </span><span class="cov2" title="2">{
@@ -564,13 +607,144 @@ func (s *grpcServer) PublishQueryResult(ctx context.Context, result *stubs.Query
                 return nil, err
         }</span>
 
-        <span class="cov5" title="6">return &amp;stubs.Ack{}, nil</span>
+        <span class="cov5" title="6">return &amp;com.Ack{}, nil</span>
 }
 
-func (s *grpcServer) codeByError(err error) codes.Code <span class="cov10" title="30">{
-        if services.IsRetryable(err) </span><span class="cov0" title="0">{
+// Store API
+
+func (s *grpcServer) Get(ctx context.Context, key *store.Key) (*store.Value, error) <span class="cov4" title="5">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return nil, s.serviceDisabledError("store")
+        }</span>
+        <span class="cov4" title="4">val, err := s.storeApi.Get(key.GetKey())
+        if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+        <span class="cov4" title="4">if val == nil </span><span class="cov1" title="1">{
+                return &amp;store.Value{}, nil // non-existing store key not explicit present
+        }</span>
+        <span class="cov3" title="3">return &amp;store.Value{Value: val}, nil</span>
+}
+
+func (s *grpcServer) Set(ctx context.Context, kv *store.KeyValue) (*store.Ack, error) <span class="cov4" title="5">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return nil, s.serviceDisabledError("store")
+        }</span>
+        <span class="cov4" title="4">err := s.storeApi.Set(kv.GetKey(), kv.GetValue())
+        if err != nil </span><span class="cov1" title="1">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+        <span class="cov3" title="3">return &amp;store.Ack{}, nil</span>
+}
+
+func (s *grpcServer) Delete(ctx context.Context, key *store.Key) (*store.Ack, error) <span class="cov3" title="3">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return nil, s.serviceDisabledError("store")
+        }</span>
+        <span class="cov2" title="2">err := s.storeApi.Delete(key.GetKey())
+        if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+        <span class="cov2" title="2">return &amp;store.Ack{}, nil</span>
+}
+
+func (s *grpcServer) DeleteAll(ctx context.Context, p *store.DeleteAllParams) (*store.Ack, error) <span class="cov2" title="2">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return nil, s.serviceDisabledError("store")
+        }</span>
+        <span class="cov1" title="1">err := s.storeApi.DeleteAll()
+        if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+        <span class="cov1" title="1">return &amp;store.Ack{}, nil</span>
+}
+
+func (s *grpcServer) DeleteRange(ctx context.Context, r *store.Range) (*store.Ack, error) <span class="cov2" title="2">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return nil, s.serviceDisabledError("store")
+        }</span>
+        <span class="cov1" title="1">err := s.storeApi.DeleteRange(r.GetStart(), r.GetEnd())
+        if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+                return nil, err
+        }</span>
+        <span class="cov1" title="1">return &amp;store.Ack{}, nil</span>
+}
+
+func (s *grpcServer) ScanPrefix(key *store.Key, stream store.StoreService_ScanPrefixServer) error <span class="cov3" title="3">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return s.serviceDisabledError("store")
+        }</span>
+        <span class="cov2" title="2">err := s.storeApi.ScanPrefix(key.GetKey(), func(key string, value []byte) error </span><span class="cov5" title="6">{
+                select </span>{
+                case &lt;-stream.Context().Done():<span class="cov0" title="0"> // stop scanning if server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                default:<span class="cov5" title="6"></span>
+                }
+                <span class="cov5" title="6">err := stream.Send(&amp;store.KeyValue{
+                        Key:   key,
+                        Value: value,
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        plog.Println(err) // stop scanning on first failure
+                }</span>
+                <span class="cov5" title="6">return err</span>
+        })
+        <span class="cov2" title="2">if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+        }</span>
+        <span class="cov2" title="2">return err</span>
+}
+
+func (s *grpcServer) ScanRange(r *store.Range, stream store.StoreService_ScanRangeServer) error <span class="cov3" title="3">{
+        if s.storeApi == nil </span><span class="cov1" title="1">{
+                return s.serviceDisabledError("store")
+        }</span>
+        <span class="cov2" title="2">err := s.storeApi.ScanRange(r.GetStart(), r.GetEnd(), func(key string, value []byte) error </span><span class="cov4" title="4">{
+                select </span>{
+                case &lt;-stream.Context().Done():<span class="cov0" title="0"> // stop scanning if server streaming call canceled by client
+                        return stream.Context().Err()</span>
+                default:<span class="cov4" title="4"></span>
+                }
+                <span class="cov4" title="4">err := stream.Send(&amp;store.KeyValue{
+                        Key:   key,
+                        Value: value,
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        plog.Println(err) // stop scanning on first failure
+                }</span>
+                <span class="cov4" title="4">return err</span>
+        })
+        <span class="cov2" title="2">if err != nil </span><span class="cov0" title="0">{
+                err = status.Errorf(s.codeByError(err), "failed: %v", err)
+                plog.Println(err)
+        }</span>
+        <span class="cov2" title="2">return err</span>
+}
+
+// Utils
+
+func (s *grpcServer) serviceDisabledError(srv string) error <span class="cov8" title="23">{
+        err := services.RetryableErrorf("service %s is disabled", srv)
+        err = status.Errorf(s.codeByError(err), "failed: %v", err)
+        plog.Println(err)
+        return err
+}</span>
+
+func (s *grpcServer) codeByError(err error) codes.Code <span class="cov10" title="54">{
+        if services.IsRetryable(err) </span><span class="cov8" title="23">{
                 return codes.Unavailable
-        }</span> else<span class="cov10" title="30"> {
+        }</span> else<span class="cov8" title="31"> {
                 return codes.InvalidArgument
         }</span>
 }
@@ -599,34 +773,34 @@ type grpcWebServer struct {
         wrappedGrpc *rpcweb.WrappedGrpcServer
 }
 
-func (s *grpcWebServer) openWebServer(rs *rpc.Server, cfg *config.Config) error <span class="cov8" title="7">{
+func (s *grpcWebServer) openWebServer(rs *rpc.Server, cfg *config.Config) error <span class="cov9" title="15">{
         if cfg.Apis.GrpcWeb.Disabled </span><span class="cov1" title="1">{
                 return nil
         }</span>
 
         // Set up gRPC-Web http server that wraps the gRPC server.
 
-        <span class="cov8" title="6">options := []rpcweb.Option{}
+        <span class="cov9" title="14">options := []rpcweb.Option{}
         originFunc := s.makeHttpOriginFunc(cfg.Apis.GrpcWeb.AccessControlAllowOrigin)
-        if originFunc != nil </span><span class="cov8" title="6">{
+        if originFunc != nil </span><span class="cov9" title="14">{
                 options = append(options, rpcweb.WithOriginFunc(originFunc))
         }</span>
 
-        <span class="cov8" title="6">s.wrappedGrpc = rpcweb.WrapServer(rs, options...)
+        <span class="cov9" title="14">s.wrappedGrpc = rpcweb.WrapServer(rs, options...)
 
         var tlsConfig *tls.Config
-        if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov5" title="3">{
+        if cfg.Apis.Cert != "" &amp;&amp; cfg.Apis.Key != "" </span><span class="cov6" title="6">{
                 cert, err := tls.LoadX509KeyPair(cfg.Apis.Cert, cfg.Apis.Key)
                 if err != nil </span><span class="cov0" title="0">{
                         return fmt.Errorf("invalid or missing PEM file in DDA configuration under 'apis.cert/.key' : %w", err)
                 }</span>
-                <span class="cov5" title="3">tlsConfig = &amp;tls.Config{
+                <span class="cov6" title="6">tlsConfig = &amp;tls.Config{
                         MinVersion:   tls.VersionTLS12,
                         Certificates: []tls.Certificate{cert},
                         ClientAuth:   tls.NoClientCert,
                 }</span>
         }
-        <span class="cov8" title="6">webAddress := cfg.Apis.GrpcWeb.Address
+        <span class="cov9" title="14">webAddress := cfg.Apis.GrpcWeb.Address
         s.httpSrv = &amp;http.Server{
                 Addr:              webAddress,
                 ErrorLog:          plog.WithPrefix("http.Server "),
@@ -642,38 +816,38 @@ func (s *grpcWebServer) openWebServer(rs *rpc.Server, cfg *config.Config) error 
                 s.wrappedGrpc.ServeHTTP(resp, req)
         }</span>)
 
-        <span class="cov8" title="6">plog.Printf("Open gRPC-Web http server listening on address %s...\n", webAddress)
+        <span class="cov9" title="14">plog.Printf("Open gRPC-Web http server listening on address %s...\n", webAddress)
 
-        go func() </span><span class="cov8" title="6">{
-                if tlsConfig == nil </span><span class="cov5" title="3">{
-                        if err := s.httpSrv.ListenAndServe(); err != http.ErrServerClosed </span><span class="cov5" title="3">{
+        go func() </span><span class="cov9" title="14">{
+                if tlsConfig == nil </span><span class="cov7" title="8">{
+                        if err := s.httpSrv.ListenAndServe(); err != http.ErrServerClosed </span><span class="cov7" title="8">{
                                 plog.Printf("Unexpected gRPC-Web http server error: %v", err)
                         }</span>
-                } else<span class="cov5" title="3"> {
-                        if err := s.httpSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed </span><span class="cov5" title="3">{
+                } else<span class="cov6" title="6"> {
+                        if err := s.httpSrv.ListenAndServeTLS("", ""); err != http.ErrServerClosed </span><span class="cov6" title="6">{
                                 plog.Printf("Unexpected gRPC-Web https server error: %v", err)
                         }</span>
                 }
         }()
 
-        <span class="cov8" title="6">return nil</span>
+        <span class="cov9" title="14">return nil</span>
 }
 
-func (s *grpcWebServer) closeWebServer() <span class="cov8" title="6">{
+func (s *grpcWebServer) closeWebServer() <span class="cov9" title="14">{
         s.wrappedGrpc = nil
-        if s.httpSrv != nil </span><span class="cov8" title="6">{
+        if s.httpSrv != nil </span><span class="cov9" title="14">{
                 if err := s.httpSrv.Close(); err != nil </span><span class="cov0" title="0">{
                         plog.Printf("Closed gRPC-Web server with error: %v", err)
-                }</span> else<span class="cov8" title="6"> {
+                }</span> else<span class="cov9" title="14"> {
                         plog.Println("Closed gRPC-Web server")
                 }</span>
-                <span class="cov8" title="6">s.httpSrv = nil</span>
+                <span class="cov9" title="14">s.httpSrv = nil</span>
         }
 }
 
-func (s *grpcWebServer) makeHttpOriginFunc(origins []string) func(string) bool <span class="cov10" title="9">{
-        if len(origins) == 0 </span><span class="cov9" title="8">{
-                return func(origin string) bool </span><span class="cov7" title="5">{
+func (s *grpcWebServer) makeHttpOriginFunc(origins []string) func(string) bool <span class="cov10" title="17">{
+        if len(origins) == 0 </span><span class="cov9" title="16">{
+                return func(origin string) bool </span><span class="cov6" title="5">{
                         return true // all origins are allowed
                 }</span>
         }
@@ -681,7 +855,7 @@ func (s *grpcWebServer) makeHttpOriginFunc(origins []string) func(string) bool <
         for _, origin := range origins </span><span class="cov3" title="2">{
                 originSet[origin] = struct{}{}
         }</span>
-        <span class="cov1" title="1">return func(origin string) bool </span><span class="cov8" title="7">{
+        <span class="cov1" title="1">return func(origin string) bool </span><span class="cov7" title="7">{
                 _, ok := originSet[origin]
                 return ok
         }</span>
@@ -695,8 +869,10 @@ func (s *grpcWebServer) makeHttpOriginFunc(origins []string) func(string) bool <
 // within a DDA configuration file in YAML format.
 //
 // Note that the fields of all configuration types are not documented in code
-// but solely in the default DDA YAML configuration file located in the project
-// root folder (single source of truth).
+// but solely in the default [DDA YAML] configuration file located in the
+// project root folder (single source of truth).
+//
+// [DDA YAML]: https://github.com/coatyio/dda/blob/main/dda.yaml
 package config
 
 import (
@@ -723,11 +899,11 @@ var compliesWithNamingConvention = regexp.MustCompile("^[-_.0-9a-zA-Z]+$").Match
 //
 // This function is intended to be used by communication binding
 // implementations.
-func ValidateName(name string, context ...string) error <span class="cov10" title="457">{
+func ValidateName(name string, context ...string) error <span class="cov10" title="469">{
         if !compliesWithNamingConvention(name) </span><span class="cov8" title="137">{
                 return fmt.Errorf(`invalid %s "%s": must only contain characters 0-9, a-z, A-Z, dot, hyphen, or underscore`, strings.Join(context, " "), name)
         }</span>
-        <span class="cov9" title="320">return nil</span>
+        <span class="cov9" title="332">return nil</span>
 }
 
 // Asserts that the given value is a non-empty string. Returns an error if
@@ -755,16 +931,16 @@ type Config struct {
 // Verify asserts that the configuration version matches the supported
 // configuration schema and that the Cluster name is valid. Returns an error
 // otherwise.
-func (c *Config) Verify() error <span class="cov7" title="70">{
+func (c *Config) Verify() error <span class="cov7" title="82">{
         if c.Version != configSchemaVersion </span><span class="cov3" title="6">{
                 return fmt.Errorf(`incompatible configuration version "%s", requiring version "%s"`, c.Version, configSchemaVersion)
         }</span>
 
-        <span class="cov7" title="64">if err := ValidateName(c.Cluster, "configuration cluster"); err != nil </span><span class="cov3" title="5">{
+        <span class="cov7" title="76">if err := ValidateName(c.Cluster, "configuration cluster"); err != nil </span><span class="cov3" title="5">{
                 return err
         }</span>
 
-        <span class="cov6" title="59">return nil</span>
+        <span class="cov7" title="71">return nil</span>
 }
 
 // An Identity represents the unique identity of a DDA.
@@ -800,9 +976,9 @@ type ConfigWebApi struct {
 // ConfigServices provides configuration options for all peripheral DDA
 // services.
 type ConfigServices struct {
-        Com ConfigComService
+        Com   ConfigComService
+        Store ConfigStoreService
         // TODO State ConfigStateService
-        // TODO Store ConfigStoreService
 }
 
 // ConfigComService defines configuration options for a selected pub-sub
@@ -812,6 +988,7 @@ type ConfigComService struct {
         Url      string
         Auth     AuthOptions
         Opts     map[string]any
+        Disabled bool
 }
 
 // AuthOptions defines authentication options for a selected pub-sub
@@ -823,6 +1000,14 @@ type AuthOptions struct {
         Verify   bool
         Username string
         Password string
+}
+
+// ConfigStoreService provides configuration options for a selected local
+// key-value storage.
+type ConfigStoreService struct {
+        Engine   string
+        Location string
+        Disabled bool
 }
 
 // ReadConfig reads and parses the given DDA configuration file in YAML format
@@ -844,7 +1029,7 @@ func ReadConfig(file string) (*Config, error) <span class="cov2" title="3">{
 
 // New creates a Config struct pre-filled with default values as specified in
 // the YAML DDA configuration format.
-func New() *Config <span class="cov6" title="31">{
+func New() *Config <span class="cov6" title="43">{
         return &amp;Config{
                 Version: configSchemaVersion,
                 Identity: Identity{
@@ -878,7 +1063,13 @@ func New() *Config <span class="cov6" title="31">{
                                         Username: "",
                                         Password: "",
                                 },
-                                Opts: make(map[string]any),
+                                Opts:     make(map[string]any),
+                                Disabled: false,
+                        },
+                        Store: ConfigStoreService{
+                                Engine:   "pebble",
+                                Location: "",
+                                Disabled: true,
                         },
                 },
         }
@@ -900,19 +1091,24 @@ import (
         "github.com/coatyio/dda/plog"
         "github.com/coatyio/dda/services/com"
         comapi "github.com/coatyio/dda/services/com/api"
+        "github.com/coatyio/dda/services/store"
+        storeapi "github.com/coatyio/dda/services/store/api"
 )
 
 // comApi is a non-exposed type alias for the communication API interface.
 type comApi = comapi.Api
 
+// storeApi is a non-exposed type alias for the local storage API interface.
+type storeApi = storeapi.Api
+
 // Dda represents a Data Distribution Agent with peripheral services and public
 // client APIs. It must be created with New() to ensure that all services and
 // APIs are correctly initialized.
 type Dda struct {
-        cfg    *config.Config // agent configuration
-        comApi                // Communication API
+        cfg      *config.Config // agent configuration
+        comApi                  // Communication API
+        storeApi                // Local Storage API
         // stateApi                 // State Management API
-        // storeApi                 // Local Storage API
 
         grpcServer apis.ApiServer
 }
@@ -923,32 +1119,43 @@ type Dda struct {
 //
 // To start the initialized DDA services and APIs invoke Open on the returned
 // *Dda structure.
-func New(cfg *config.Config) (*Dda, error) <span class="cov8" title="68">{
+func New(cfg *config.Config) (*Dda, error) <span class="cov8" title="80">{
         if err := cfg.Verify(); err != nil </span><span class="cov5" title="10">{
                 return nil, err
         }</span>
 
-        <span class="cov8" title="58">config := *cfg // copy to make it immutable inside of package
+        <span class="cov8" title="70">config := *cfg // copy to make it immutable inside of package
         dda := Dda{cfg: &amp;config}
 
-        comApi, err := com.New(config.Services.Com.Protocol)
-        if err != nil </span><span class="cov4" title="5">{
-                return nil, err
-        }</span> else<span class="cov8" title="53"> {
-                dda.comApi = *comApi
+        if !config.Services.Com.Disabled </span><span class="cov8" title="58">{
+                comApi, err := com.New(config.Services.Com.Protocol)
+                if err != nil </span><span class="cov3" title="5">{
+                        return nil, err
+                }</span> else<span class="cov8" title="53"> {
+                        dda.comApi = *comApi
+                }</span>
+        }
+
+        <span class="cov8" title="65">if !config.Services.Store.Disabled </span><span class="cov2" title="3">{
+                storeApi, err := store.New(config.Services.Store.Engine)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span> else<span class="cov2" title="3"> {
+                        dda.storeApi = *storeApi
+                }</span>
+        }
+
+        <span class="cov8" title="65">if !config.Apis.Grpc.Disabled </span><span class="cov6" title="18">{
+                dda.grpcServer = grpc.New(dda.comApi, dda.storeApi)
         }</span>
 
-        <span class="cov8" title="53">if !cfg.Apis.Grpc.Disabled </span><span class="cov4" title="8">{
-                dda.grpcServer = grpc.New(dda.comApi)
-        }</span>
-
-        <span class="cov8" title="53">plog.Printf("Created DDA %+v", dda.Identity())
+        <span class="cov8" title="65">plog.Printf("Created DDA %+v", dda.Identity())
 
         return &amp;dda, nil</span>
 }
 
 // Identity gets the Identity of the DDA.
-func (d *Dda) Identity() config.Identity <span class="cov10" title="120">{
+func (d *Dda) Identity() config.Identity <span class="cov10" title="152">{
         return d.cfg.Identity
 }</span>
 
@@ -957,34 +1164,46 @@ func (d *Dda) Identity() config.Identity <span class="cov10" title="120">{
 // be started, or if the given timeout elapses before setup of a single service
 // or API completes. Specify a zero timeout to disable preliminary timeout
 // behavior.
-func (d *Dda) Open(timeout time.Duration) error <span class="cov8" title="48">{
-        if err := &lt;-d.comApi.Open(d.cfg, timeout); err != nil </span><span class="cov6" title="20">{
-                return err
-        }</span>
-
-        <span class="cov7" title="28">if d.grpcServer != nil </span><span class="cov4" title="8">{
-                if err := d.grpcServer.Open(d.cfg); err != nil </span><span class="cov2" title="2">{
+func (d *Dda) Open(timeout time.Duration) error <span class="cov8" title="60">{
+        if d.comApi != nil </span><span class="cov7" title="48">{
+                if err := &lt;-d.comApi.Open(d.cfg, timeout); err != nil </span><span class="cov6" title="20">{
                         return err
                 }</span>
         }
 
-        <span class="cov7" title="26">plog.Printf("Opened DDA %+v", d.Identity())
+        <span class="cov7" title="40">if d.storeApi != nil </span><span class="cov2" title="3">{
+                if err := d.storeApi.Open(d.cfg); err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov7" title="40">if d.grpcServer != nil </span><span class="cov6" title="18">{
+                if err := d.grpcServer.Open(d.cfg); err != nil </span><span class="cov3" title="4">{
+                        return err
+                }</span>
+        }
+
+        <span class="cov7" title="36">plog.Printf("Opened DDA %+v", d.Identity())
 
         return nil</span>
 }
 
 // Close synchronously shuts down all configured DDA services and APIs
 // gracefully and releases associated resources.
-func (d *Dda) Close() <span class="cov7" title="36">{
-        &lt;-d.comApi.Close()
-        // &lt;-d.StateApi.Close()
-        // &lt;-d.StoreApi.Close()
+func (d *Dda) Close() <span class="cov7" title="46">{
+        if d.comApi != nil </span><span class="cov7" title="36">{
+                &lt;-d.comApi.Close()
+        }</span>
 
-        if d.grpcServer != nil </span><span class="cov4" title="6">{
+        <span class="cov7" title="46">if d.storeApi != nil </span><span class="cov2" title="3">{
+                d.storeApi.Close()
+        }</span>
+
+        <span class="cov7" title="46">if d.grpcServer != nil </span><span class="cov5" title="14">{
                 d.grpcServer.Close()
         }</span>
 
-        <span class="cov7" title="36">plog.Printf("Closed DDA %+v", d.Identity())</span>
+        <span class="cov7" title="46">plog.Printf("Closed DDA %+v", d.Identity())</span>
 }
 </pre>
 		
@@ -1041,12 +1260,11 @@ const (
         ScopeDef         Scope = ""    // Default scope (ScopeCom)
         ScopeCom         Scope = "com" // Communication scope
         ScopeState       Scope = "sta" // Distributed state management scope
-        ScopeStore       Scope = "sto" // Local storage scope
         ScopeSideChannel Scope = "sdc" // Side channel scope
 )
 
 // ToScope converts a Scope string to a Scope.
-func ToScope(scope string) (Scope, error) <span class="cov10" title="132">{
+func ToScope(scope string) (Scope, error) <span class="cov10" title="131">{
         switch scope </span>{
         case string(ScopeDef):<span class="cov1" title="1">
                 return ScopeCom, nil</span>
@@ -1054,8 +1272,6 @@ func ToScope(scope string) (Scope, error) <span class="cov10" title="132">{
                 return ScopeCom, nil</span>
         case string(ScopeState):<span class="cov1" title="1">
                 return ScopeState, nil</span>
-        case string(ScopeStore):<span class="cov1" title="1">
-                return ScopeStore, nil</span>
         case string(ScopeSideChannel):<span class="cov1" title="1">
                 return ScopeSideChannel, nil</span>
         default:<span class="cov1" title="1">
@@ -1072,8 +1288,8 @@ func ToScope(scope string) (Scope, error) <span class="cov10" title="132">{
 // is described in a common way adhering closely to the CloudEvents
 // specification.
 //
-// Note that Api implementations are meant to be thread-safe and Api interface
-// methods may be run on concurrent goroutines.
+// Note that Api implementations are meant to be thread-safe and individual Api
+// interface methods may be run on concurrent goroutines.
 type Api interface {
 
         // Open asynchronously connects to the communication network of the
@@ -1637,7 +1853,7 @@ func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe
         if len(bufferSize) &gt; 0 </span><span class="cov1" title="1">{
                 size = bufferSize[0]
         }</span>
-        <span class="cov8" title="92">recvChan := make(chan R, size)
+        <span class="cov8" title="93">recvChan := make(chan R, size)
         rc := &amp;RouteChannel[R, T]{ReceiveChan: recvChan, correlationId: filter.CorrelationId}
         rc.unsub = unsubscribe
         rc.CtxDone = ctx.Done()
@@ -1698,9 +1914,9 @@ func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="c
                 select </span>{
                 case &lt;-rc.CtxDone:<span class="cov0" title="0">
                         return</span>
-                default:<span class="cov8" title="125"></span>
+                default:<span class="cov8" title="126"></span>
                 }
-                <span class="cov8" title="125">select </span>{
+                <span class="cov8" title="126">select </span>{
                 case &lt;-rc.CtxDone:<span class="cov0" title="0">
                         return</span>
                 case rc.ReceiveChan &lt;- message:<span class="cov8" title="126"></span>
@@ -1709,8 +1925,8 @@ func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="c
         <span class="cov8" title="129">zerocid := *new(T)
         cid := filter.CorrelationId
 
-        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov8" title="124">{
-                if cid == zerocid </span><span class="cov7" title="66">{
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov8" title="122">{
+                if cid == zerocid </span><span class="cov7" title="64">{
                         // Dispatch incoming request to all non-response route channels.
                         for _, rc := range rcs </span><span class="cov7" title="70">{
                                 if rc.correlationId == zerocid </span><span class="cov7" title="68">{
@@ -1736,9 +1952,9 @@ func (r *Router[R, T]) remove(filter RouteFilter[T], routeChannel *RouteChannel[
                 found := false
                 l := len(rcs)
                 for i := 0; i &lt; l; i++ </span><span class="cov8" title="100">{
-                        if found </span><span class="cov3" title="4">{
+                        if found </span><span class="cov4" title="8">{
                                 rcs[i-1] = rcs[i]
-                        }</span> else<span class="cov8" title="96"> if rcs[i] == routeChannel </span><span class="cov8" title="90">{
+                        }</span> else<span class="cov8" title="92"> if rcs[i] == routeChannel </span><span class="cov8" title="90">{
                                 found = true
                         }</span>
                 }
@@ -1746,14 +1962,14 @@ func (r *Router[R, T]) remove(filter RouteFilter[T], routeChannel *RouteChannel[
                         defer close(routeChannel.ReceiveChan)
                         rcs[l-1] = nil
                         if l == 1 </span><span class="cov8" title="81">{
-                                if err := routeChannel.unsub(); err != nil </span><span class="cov1" title="1">{
+                                if err := routeChannel.unsub(); err != nil </span><span class="cov0" title="0">{
                                         // As binding subscription is kept, also keep topic without
                                         // route channel to prevent a subsequent resubscription from
                                         // failing.
                                         r.routes[filter.Topic] = rcs[:0]
                                         return
                                 }</span>
-                                <span class="cov8" title="80">delete(r.routes, filter.Topic)
+                                <span class="cov8" title="81">delete(r.routes, filter.Topic)
                                 return</span>
                         }
                         <span class="cov4" title="9">r.routes[filter.Topic] = rcs[:l-1]
@@ -1852,7 +2068,7 @@ var strictClientIdRegex = regexp.MustCompile("[^0-9a-zA-Z]")
 type mqttRouteFilter = api.RouteFilter[string]
 
 // Mqtt5Binding realizes a communication protocol binding for MQTT v5 by
-// implementing interface api.Api.
+// implementing the communication API interface.
 type Mqtt5Binding struct {
         mu                 sync.RWMutex // protects following fields
         eventRouter        *api.Router[api.Event, string]
@@ -1905,7 +2121,7 @@ func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) &lt;-chan
                 return ch
         }</span>
 
-        <span class="cov6" title="33">plog.Printf("Open MQTT5 binding connecting to %s...\n", ccfg.BrokerUrls[0])
+        <span class="cov6" title="33">plog.Printf("Open MQTT5 communication binding connecting to %s...\n", ccfg.BrokerUrls[0])
 
         // Note that we cannot use a context.WithTimeout for NewConnection as
         // autopaho disconnects as soon as the passed context is canceled, i.e. when
@@ -1956,6 +2172,8 @@ func (b *Mqtt5Binding) Close() (done &lt;-chan struct{}) <span class="cov7" titl
         _ = b.conn.Disconnect(ctx)
 
         b.conn = nil
+
+        plog.Printf("Closed MQTT5 communication binding\n")
 
         return ch</span>
 }
@@ -2147,7 +2365,7 @@ func (b *Mqtt5Binding) SubscribeQuery(ctx context.Context, filter api.Subscripti
                 return nil, err
         }</span>
 
-        <span class="cov5" title="18">b.mu.RLock()
+        <span class="cov5" title="19">b.mu.RLock()
         defer b.mu.RUnlock()
 
         if b.conn == nil </span><span class="cov3" title="5">{
@@ -2324,7 +2542,7 @@ func (b *Mqtt5Binding) validatePatternFilter(pat string, filter api.Subscription
                         return err
                 }</span>
         }
-        <span class="cov7" title="73">return nil</span>
+        <span class="cov7" title="74">return nil</span>
 }
 
 func (b *Mqtt5Binding) topicWithLevels(share string, scope api.Scope, levels ...string) (pubTopic string, subTopic string) <span class="cov8" title="137">{
@@ -2339,13 +2557,13 @@ func (b *Mqtt5Binding) topicWithLevels(share string, scope api.Scope, levels ...
         <span class="cov8" title="137">return</span>
 }
 
-func (b *Mqtt5Binding) createPubSubContext() (context.Context, context.CancelFunc) <span class="cov9" title="286">{
+func (b *Mqtt5Binding) createPubSubContext() (context.Context, context.CancelFunc) <span class="cov10" title="286">{
         var cancel context.CancelFunc = func() </span>{<span class="cov9" title="197">}</span>
-        <span class="cov9" title="286">ctx := context.Background()
+        <span class="cov10" title="286">ctx := context.Background()
         if b.qos != 0 </span><span class="cov8" title="90">{
                 ctx, cancel = context.WithTimeout(ctx, pubSubAckTimeout)
         }</span>
-        <span class="cov10" title="287">return ctx, cancel</span>
+        <span class="cov10" title="286">return ctx, cancel</span>
 }
 
 func (b *Mqtt5Binding) responseInfo(topic string) (string, string) <span class="cov6" title="28">{
@@ -2387,16 +2605,16 @@ func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.User
         <span class="cov8" title="122">return nil</span>
 }
 
-func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" title="85">{
+func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" title="84">{
         if len(topics) == 0 </span><span class="cov0" title="0">{
                 return nil
         }</span>
 
-        <span class="cov8" title="85">ctx, cancel := b.createPubSubContext()
+        <span class="cov8" title="83">ctx, cancel := b.createPubSubContext()
         defer cancel()
 
         subs := make([]paho.SubscribeOptions, 0, len(topics))
-        for _, topic := range topics </span><span class="cov8" title="85">{
+        for _, topic := range topics </span><span class="cov8" title="83">{
                 subs = append(subs, paho.SubscribeOptions{
                         Topic: topic,
                         QoS:   b.qos,
@@ -2406,7 +2624,7 @@ func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" titl
                         NoLocal: b.noLocal &amp;&amp; !strings.HasPrefix(topic, levelShare),
                 })
         }</span>
-        <span class="cov8" title="84">s := &amp;paho.Subscribe{Subscriptions: subs}
+        <span class="cov8" title="85">s := &amp;paho.Subscribe{Subscriptions: subs}
 
         b.mu.RLock()
         defer b.mu.RUnlock()
@@ -2446,11 +2664,11 @@ func (b *Mqtt5Binding) unsubscribe(topics ...string) error <span class="cov7" ti
                 return fmt.Errorf("unsubscribe failed as binding is not yet open")
         }</span>
 
-        <span class="cov7" title="80">if _, err := b.conn.Unsubscribe(ctx, u); err != nil </span><span class="cov1" title="1">{
+        <span class="cov7" title="80">if _, err := b.conn.Unsubscribe(ctx, u); err != nil </span><span class="cov0" title="0">{
                 plog.Printf("unsubscribe %v failed: %v", topics, err)
                 return services.RetryableErrorf("unsubscribe %v failed: %w", topics, err)
         }</span>
-        <span class="cov7" title="79">return nil</span>
+        <span class="cov7" title="80">return nil</span>
 }
 
 func (b *Mqtt5Binding) resubscribe() <span class="cov3" title="5">{
@@ -2493,7 +2711,7 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov8" title="126">{
         }</span>
 
         <span class="cov8" title="126">switch levelPattern </span>{
-        case levelEvent:<span class="cov6" title="26">
+        case levelEvent:<span class="cov6" title="24">
                 event := api.Event{
                         Type:            typeName,
                         Id:              id,
@@ -2517,13 +2735,13 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov8" title="126">{
                         }</span>,
                 }
                 <span class="cov6" title="24">b.actionRouter.Dispatch(routeFilter, actionCb)</span>
-        case levelActionResult:<span class="cov6" title="39">
+        case levelActionResult:<span class="cov6" title="40">
                 seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
                 if err != nil </span><span class="cov0" title="0">{
                         plog.Printf("handle: error on SequenceNumber: %v", err)
                         return
                 }</span>
-                <span class="cov6" title="39">result := api.ActionResult{
+                <span class="cov6" title="40">result := api.ActionResult{
                         Context:         p.Properties.User.Get(userPropContext),
                         Data:            p.Payload,
                         DataContentType: p.Properties.User.Get(userPropDataContentType),
@@ -2545,13 +2763,13 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov8" title="126">{
                         }</span>,
                 }
                 <span class="cov5" title="14">b.queryRouter.Dispatch(routeFilter, queryCb)</span>
-        case levelQueryResult:<span class="cov5" title="23">
+        case levelQueryResult:<span class="cov6" title="24">
                 seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
                 if err != nil </span><span class="cov0" title="0">{
                         plog.Printf("handle: error on SequenceNumber: %v", err)
                         return
                 }</span>
-                <span class="cov5" title="23">result := api.QueryResult{
+                <span class="cov6" title="24">result := api.QueryResult{
                         Context:         p.Properties.User.Get(userPropContext),
                         Data:            p.Payload,
                         DataContentType: p.Properties.User.Get(userPropDataContentType),
@@ -2582,11 +2800,11 @@ type retryableError struct {
         error
 }
 
-func (r *retryableError) Error() string <span class="cov1" title="1">{
+func (r *retryableError) Error() string <span class="cov6" title="24">{
         return "retryable error: " + r.error.Error()
 }</span>
 
-func (r *retryableError) Retryable() bool <span class="cov4" title="7">{
+func (r *retryableError) Retryable() bool <span class="cov6" title="30">{
         return true
 }</span>
 
@@ -2595,7 +2813,7 @@ func (r *retryableError) Retryable() bool <span class="cov4" title="7">{
 //
 // Use the function IsRetryable(error) to check whether a given error is
 // retryable or not.
-func RetryableErrorf(format string, a ...any) error <span class="cov2" title="2">{
+func RetryableErrorf(format string, a ...any) error <span class="cov6" title="24">{
         return &amp;retryableError{error: fmt.Errorf(format, a...)}
 }</span>
 
@@ -2616,10 +2834,280 @@ func NewRetryableError(err error) error <span class="cov4" title="7">{
 // potentially. IsRetryable returns false if the error is nil or if the error is
 // caused by an operation that cannot be retried due to failed preconditions,
 // invalid arguments, or on any other grounds.
-func IsRetryable(err error) bool <span class="cov10" title="174">{
+func IsRetryable(err error) bool <span class="cov10" title="198">{
         rerr, ok := err.(retryable)
         return ok &amp;&amp; rerr.Retryable()
 }</span>
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package pebble provides a storage binding implementation for the [Pebble]
+// storage engine.
+//
+// [Pebble]: https://github.com/cockroachdb/pebble
+package pebble
+
+import (
+        "fmt"
+        "sync"
+
+        "github.com/coatyio/dda/config"
+        "github.com/coatyio/dda/plog"
+        "github.com/coatyio/dda/services"
+        "github.com/coatyio/dda/services/store/api"
+        "github.com/cockroachdb/pebble"
+        "github.com/cockroachdb/pebble/vfs"
+)
+
+// errorOnlyLogger outputs Pebble error messages using the plog package.
+type errorOnlyLogger struct{}
+
+func (l *errorOnlyLogger) Infof(format string, args ...any) {<span class="cov0" title="0">
+        // Suppress informational output.
+}</span>
+
+func (l *errorOnlyLogger) Errorf(format string, args ...any) <span class="cov0" title="0">{
+        plog.Printf(format, args...)
+}</span>
+
+func (l *errorOnlyLogger) Fatalf(format string, args ...any) <span class="cov0" title="0">{
+        plog.Printf(format, args...)
+}</span>
+
+// PebbleBinding realizes a storage binding for the Pebble key-value store by
+// implementing the storage API interface.
+type PebbleBinding struct {
+        mu sync.RWMutex // protects following fields
+        db *pebble.DB
+}
+
+func (b *PebbleBinding) Open(cfg *config.Config) error <span class="cov3" title="3">{
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db != nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov3" title="3">loc := cfg.Services.Store.Location
+        opts := &amp;pebble.Options{
+                Logger: &amp;errorOnlyLogger{},
+        }
+        if loc == "" </span><span class="cov1" title="1">{
+                opts.FS = vfs.NewMem()
+                plog.Printf("Open Pebble storage binding with in-memory store...\n")
+        }</span> else<span class="cov2" title="2"> {
+                plog.Printf("Open Pebble storage binding with persistent store at %s...\n", loc)
+        }</span>
+
+        <span class="cov3" title="3">var err error
+        if b.db, err = pebble.Open(loc, opts); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov3" title="3">return nil</span>
+}
+
+func (b *PebbleBinding) Close() <span class="cov3" title="3">{
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov3" title="3">if err := b.db.Close(); err != nil </span><span class="cov0" title="0">{
+                plog.Printf("close Pebble store failed: %v", err)
+        }</span>
+
+        <span class="cov3" title="3">b.db = nil
+
+        plog.Printf("Closed Pebble storage binding\n")</span>
+}
+
+func (b *PebbleBinding) Get(key string) ([]byte, error) <span class="cov9" title="26">{
+        b.mu.RLock() // it is safe to call Pebble Get and NewIter from concurrent goroutines
+        defer b.mu.RUnlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("Get %s failed as binding is not yet open", key)
+        }</span>
+
+        <span class="cov9" title="26">v, closer, err := b.db.Get([]byte(key))
+        if err == pebble.ErrNotFound </span><span class="cov5" title="5">{
+                return nil, nil
+        }</span>
+        <span class="cov8" title="21">if err != nil </span><span class="cov0" title="0">{
+                return nil, services.NewRetryableError(err)
+        }</span>
+        <span class="cov8" title="21">defer closer.Close()
+        val := make([]byte, len(v))
+        copy(val, v)
+        return val, nil</span>
+}
+
+func (b *PebbleBinding) Set(key string, value []byte) error <span class="cov9" title="26">{
+        if value == nil </span><span class="cov5" title="5">{
+                return fmt.Errorf("Set %s failed as value must not be nil", key)
+        }</span>
+
+        <span class="cov8" title="21">b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Set %s failed as binding is not yet open", key)
+        }</span>
+        <span class="cov8" title="21">if err := b.db.Set([]byte(key), value, pebble.Sync); err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov8" title="21">return nil</span>
+}
+
+func (b *PebbleBinding) Delete(key string) error <span class="cov5" title="6">{
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("Delete %s failed as binding is not yet open", key)
+        }</span>
+        <span class="cov5" title="6">if err := b.db.Delete([]byte(key), pebble.Sync); err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov5" title="6">return nil</span>
+}
+
+func (b *PebbleBinding) DeleteAll() error <span class="cov5" title="5">{
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("DeleteAll failed as binding is not yet open")
+        }</span>
+
+        <span class="cov5" title="5">iter, err := b.db.NewIter(nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov5" title="5">defer b.db.Flush() // NoSync+Flush is one order of magnitude faster than Sync after every Delete
+        for iter.First(); iter.Valid(); iter.Next() </span><span class="cov6" title="7">{
+                err := b.db.Delete(iter.Key(), pebble.NoSync)
+                if err != nil </span><span class="cov0" title="0">{ // fail fast
+                        return services.NewRetryableError(fmt.Errorf("DeleteAll failed on key %s: %w: %w", iter.Key(), err, iter.Close()))
+                }</span>
+        }
+        <span class="cov5" title="5">return iter.Close()</span>
+}
+
+func (b *PebbleBinding) DeleteRange(start, end string) error <span class="cov5" title="5">{
+        b.mu.Lock()
+        defer b.mu.Unlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("DeleteRange [%s,%s) failed as binding is not yet open", start, end)
+        }</span>
+        <span class="cov5" title="5">if err := b.db.DeleteRange([]byte(start), []byte(end), pebble.Sync); err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov5" title="5">return nil</span>
+}
+
+func (b *PebbleBinding) ScanPrefix(prefix string, callback api.ScanKeyValue) error <span class="cov6" title="10">{
+        b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
+        defer b.mu.RUnlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("ScanPrefix %s failed as binding is not yet open", prefix)
+        }</span>
+
+        <span class="cov6" title="10">keyUpperBound := func(b []byte) []byte </span><span class="cov6" title="10">{
+                end := make([]byte, len(b))
+                copy(end, b)
+                for i := len(end) - 1; i &gt;= 0; i-- </span><span class="cov6" title="10">{
+                        end[i] = end[i] + 1
+                        if end[i] != 0 </span><span class="cov6" title="10">{
+                                return end[:i+1]
+                        }</span>
+                }
+                <span class="cov0" title="0">return nil</span> // no upper-bound
+        }
+
+        <span class="cov6" title="10">pre := []byte(prefix)
+        iter, err := b.db.NewIter(&amp;pebble.IterOptions{
+                LowerBound: pre,
+                UpperBound: keyUpperBound(pre), // excluding
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov6" title="10">for iter.First(); iter.Valid(); iter.Next() </span><span class="cov10" title="32">{
+                val := make([]byte, len(iter.Value()))
+                copy(val, iter.Value())
+                if err := callback(string(iter.Key()), val); err != nil </span><span class="cov2" title="2">{
+                        break</span>
+                }
+        }
+        <span class="cov6" title="10">return iter.Close()</span>
+}
+
+func (b *PebbleBinding) ScanRange(start, end string, callback api.ScanKeyValue) error <span class="cov8" title="18">{
+        b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
+        defer b.mu.RUnlock()
+
+        if b.db == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("ScanRange [%s,%s) failed as binding is not yet open", start, end)
+        }</span>
+
+        <span class="cov8" title="18">iter, err := b.db.NewIter(&amp;pebble.IterOptions{
+                LowerBound: []byte(start),
+                UpperBound: []byte(end),
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return services.NewRetryableError(err)
+        }</span>
+        <span class="cov8" title="18">for iter.First(); iter.Valid(); iter.Next() </span><span class="cov9" title="22">{
+                val := make([]byte, len(iter.Value()))
+                copy(val, iter.Value())
+                if err := callback(string(iter.Key()), val); err != nil </span><span class="cov2" title="2">{
+                        break</span>
+                }
+        }
+        <span class="cov8" title="18">return iter.Close()</span>
+}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">// SPDX-FileCopyrightText: © 2023 Siemens AG
+// SPDX-License-Identifier: MIT
+
+// Package store provides a factory function that creates a specific storage
+// binding from a given storage engine.
+package store
+
+import (
+        "fmt"
+
+        "github.com/coatyio/dda/services/store/api"
+        "github.com/coatyio/dda/services/store/pebble"
+)
+
+// New creates and initializes a new specific storage binding as configured by
+// the given storage engine.
+//
+// Returns the new storage binding as a *Api interface. An error is returned if
+// the given storage engine is not supported.
+func New(engine string) (*api.Api, error) <span class="cov10" title="5">{
+        var api api.Api
+        switch engine </span>{
+        case "pebble":<span class="cov8" title="4">
+                api = &amp;pebble.PebbleBinding{}</span>
+        default:<span class="cov1" title="1">
+                // TODO Whensoever Go plugin mechanism is really cross platform, use it
+                // to look up storage bindings that are provided externally.
+                return nil, fmt.Errorf("storage engine %s: not supported", engine)</span>
+        }
+
+        <span class="cov8" title="4">return &amp;api, nil</span>
+}
 </pre>
 		
 		</div>
