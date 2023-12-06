@@ -166,7 +166,7 @@ func RunTestGrpc(t *testing.T, cluster string, clientApis config.ConfigApis, srv
 		kv, err = stream.Recv()
 		assert.Error(t, io.EOF, err)
 		assert.Condition(t, func() bool { // may or may not receive prefix1 along with error
-			return kv == nil || (kv.GetKey() == "prefix1" && bytes.Compare(kv.GetValue(), []byte("prefix1")) == 0)
+			return kv == nil || (kv.GetKey() == "prefix1" && bytes.Equal(kv.GetValue(), []byte("prefix1")))
 		})
 	})
 
@@ -206,7 +206,7 @@ func RunTestGrpc(t *testing.T, cluster string, clientApis config.ConfigApis, srv
 		kv, err = stream.Recv()
 		assert.Error(t, io.EOF, err)
 		assert.Condition(t, func() bool { // may or may not receive prefix1 along with error
-			return kv == nil || (kv.GetKey() == "prefix1" && bytes.Compare(kv.GetValue(), []byte("prefix1")) == 0)
+			return kv == nil || (kv.GetKey() == "prefix1" && bytes.Equal(kv.GetValue(), []byte("prefix1")))
 		})
 	})
 

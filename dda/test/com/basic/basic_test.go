@@ -47,7 +47,7 @@ func init() {
 }
 
 func TestMain(m *testing.M) {
-	testdata.RunMainWithComSetup(m, testComSetup)
+	testdata.RunWithComSetup(func() { m.Run() }, testComSetup)
 }
 
 func TestCom(t *testing.T) {

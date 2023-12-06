@@ -52,7 +52,7 @@ func init() {
 }
 
 func TestMain(m *testing.M) {
-	testdata.RunMainWithStoreSetup(m, testStoreSetup)
+	testdata.RunWithStoreSetup(func() { m.Run() }, testStoreSetup)
 }
 
 func TestGrpcStore(t *testing.T) {

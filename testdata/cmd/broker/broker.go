@@ -15,8 +15,8 @@ import (
 )
 
 func main() {
-	setup := make(testdata.PubSubCommunicationSetup)
-	setup["mqtt5"] = &testdata.PubSubSetupOptions{
+	setup := make(testdata.CommunicationSetup)
+	setup["mqtt5"] = &testdata.CommunicationSetupOptions{
 		SetupOpts: map[string]any{
 			"brokerPort":          1883,
 			"brokerWsPort":        9883,
@@ -24,11 +24,9 @@ func main() {
 			"brokerLogDebugHooks": false,
 		},
 	}
-	teardown := testdata.TestSetup(setup)
-	defer teardown()
-
-	sigCh := make(chan os.Signal, 2)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-	<-sigCh
+	testdata.RunWithComSetup(func() {
+		sigCh := make(chan os.Signal, 2)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+		<-sigCh
+	}, setup)
 }

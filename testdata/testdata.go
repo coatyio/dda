@@ -17,7 +17,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/coatyio/dda/config"
@@ -68,9 +67,8 @@ type StoreSetupOptions struct {
 	StorageDir  string // for directory-based storage
 }
 
-// RunMainWithComSetup runs the tests with the given communication setup, then
-// exits with the exit code returned by m.Run.
-func RunMainWithComSetup(m *testing.M, setup CommunicationSetup) {
+// RunWithComSetup runs the given function with the given communication setup.
+func RunWithComSetup(run func(), setup CommunicationSetup) {
 	setupFunc := func() map[string]func() {
 		cleanup := make(map[string]func())
 		for protocol, val := range setup {
@@ -92,35 +90,34 @@ func RunMainWithComSetup(m *testing.M, setup CommunicationSetup) {
 		return cleanup
 	}
 
-	runMain(m, setupFunc)
+	runWithSetup(run, setupFunc)
 }
 
-// RunMainWithStoreSetup runs the tests with the given store setup, then exits
-// with the exit code returned by m.Run.
-func RunMainWithStoreSetup(m *testing.M, setup StoreSetup) {
+// RunWithStoreSetup runs the given function with the given store setup.
+func RunWithStoreSetup(run func(), setup StoreSetup) {
 	setupFunc := func() map[string]func() {
 		cleanup := make(map[string]func())
 		for engine, val := range setup {
 			if val.StorageFile != "" {
 				plog.Printf("Created %s storage file: %s", engine, val.StorageFile)
 				cleanup[engine] = func() {
-					os.Remove(val.StorageFile)
+					_ = os.Remove(val.StorageFile)
 				}
 			}
 			if val.StorageDir != "" {
 				plog.Printf("Created %s storage directory: %s", engine, val.StorageDir)
 				cleanup[engine] = func() {
-					os.RemoveAll(val.StorageDir)
+					_ = os.RemoveAll(val.StorageDir)
 				}
 			}
 		}
 		return cleanup
 	}
 
-	runMain(m, setupFunc)
+	runWithSetup(run, setupFunc)
 }
 
-func runMain(m *testing.M, setup func() map[string]func()) {
+func runWithSetup(run func(), setup func() map[string]func()) {
 	ddaLog := os.Getenv("DDA_TEST_LOG") == "true"
 	enableLog := func() {}
 	if !ddaLog {
@@ -136,7 +133,7 @@ func runMain(m *testing.M, setup func() map[string]func()) {
 		enableLog()
 	}()
 
-	m.Run()
+	run()
 }
 
 // NewConfig creates new Config with the given cluster, identity name, and
