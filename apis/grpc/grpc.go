@@ -565,6 +565,19 @@ func (s *grpcServer) DeleteAll(ctx context.Context, p *store.DeleteAllParams) (*
 	return &store.Ack{}, nil
 }
 
+func (s *grpcServer) DeletePrefix(ctx context.Context, r *store.Key) (*store.Ack, error) {
+	if s.storeApi == nil {
+		return nil, s.serviceDisabledError("store")
+	}
+	err := s.storeApi.DeletePrefix(r.GetKey())
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &store.Ack{}, nil
+}
+
 func (s *grpcServer) DeleteRange(ctx context.Context, r *store.Range) (*store.Ack, error) {
 	if s.storeApi == nil {
 		return nil, s.serviceDisabledError("store")
@@ -582,10 +595,10 @@ func (s *grpcServer) ScanPrefix(key *store.Key, stream store.StoreService_ScanPr
 	if s.storeApi == nil {
 		return s.serviceDisabledError("store")
 	}
-	err := s.storeApi.ScanPrefix(key.GetKey(), func(key string, value []byte) error {
+	err := s.storeApi.ScanPrefix(key.GetKey(), func(key string, value []byte) bool {
 		select {
 		case <-stream.Context().Done(): // stop scanning if server streaming call canceled by client
-			return stream.Context().Err()
+			return false
 		default:
 		}
 		err := stream.Send(&store.KeyValue{
@@ -594,8 +607,9 @@ func (s *grpcServer) ScanPrefix(key *store.Key, stream store.StoreService_ScanPr
 		})
 		if err != nil {
 			plog.Println(err) // stop scanning on first failure
+			return false
 		}
-		return err
+		return true
 	})
 	if err != nil {
 		err = status.Errorf(s.codeByError(err), "failed: %v", err)
@@ -608,10 +622,10 @@ func (s *grpcServer) ScanRange(r *store.Range, stream store.StoreService_ScanRan
 	if s.storeApi == nil {
 		return s.serviceDisabledError("store")
 	}
-	err := s.storeApi.ScanRange(r.GetStart(), r.GetEnd(), func(key string, value []byte) error {
+	err := s.storeApi.ScanRange(r.GetStart(), r.GetEnd(), func(key string, value []byte) bool {
 		select {
 		case <-stream.Context().Done(): // stop scanning if server streaming call canceled by client
-			return stream.Context().Err()
+			return false
 		default:
 		}
 		err := stream.Send(&store.KeyValue{
@@ -620,8 +634,9 @@ func (s *grpcServer) ScanRange(r *store.Range, stream store.StoreService_ScanRan
 		})
 		if err != nil {
 			plog.Println(err) // stop scanning on first failure
+			return false
 		}
-		return err
+		return true
 	})
 	if err != nil {
 		err = status.Errorf(s.codeByError(err), "failed: %v", err)

@@ -216,6 +216,12 @@ func RunTestGrpc(t *testing.T, cluster string, clientApis config.ConfigApis, srv
 		assert.NoError(t, err)
 	})
 
+	t.Run("DeletePrefix prefix1*", func(t *testing.T) {
+		ack, err := client.DeletePrefix(context.Background(), &store.Key{Key: "prefix1"})
+		assert.True(t, proto.Equal(&store.Ack{}, ack))
+		assert.NoError(t, err)
+	})
+
 	t.Run("DeleteRange [prefix1,prefix2)", func(t *testing.T) {
 		ack, err := client.DeleteRange(context.Background(), &store.Range{Start: "prefix1", End: "prefix2"})
 		assert.True(t, proto.Equal(&store.Ack{}, ack))

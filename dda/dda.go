@@ -29,8 +29,8 @@ type storeApi = storeapi.Api
 type Dda struct {
 	cfg      *config.Config // agent configuration
 	comApi                  // Communication API
-	storeApi                // Local Storage API
-	// stateApi                 // State Management API
+	storeApi                // Local storage API
+	// stateApi                 // Distributed state synchronization API
 
 	grpcServer apis.ApiServer
 }

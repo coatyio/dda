@@ -157,6 +157,20 @@ func (b *PebbleBinding) DeleteAll() error {
 	return iter.Close()
 }
 
+func (b *PebbleBinding) DeletePrefix(prefix string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.db == nil {
+		return fmt.Errorf("DeletePrefix %s failed as binding is not yet open", prefix)
+	}
+	p := []byte(prefix)
+	if err := b.db.DeleteRange(p, b.keyUpperBound(p), pebble.Sync); err != nil {
+		return services.NewRetryableError(err)
+	}
+	return nil
+}
+
 func (b *PebbleBinding) DeleteRange(start, end string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -178,22 +192,10 @@ func (b *PebbleBinding) ScanPrefix(prefix string, callback api.ScanKeyValue) err
 		return fmt.Errorf("ScanPrefix %s failed as binding is not yet open", prefix)
 	}
 
-	keyUpperBound := func(b []byte) []byte {
-		end := make([]byte, len(b))
-		copy(end, b)
-		for i := len(end) - 1; i >= 0; i-- {
-			end[i] = end[i] + 1
-			if end[i] != 0 {
-				return end[:i+1]
-			}
-		}
-		return nil // no upper-bound
-	}
-
 	pre := []byte(prefix)
 	iter, err := b.db.NewIter(&pebble.IterOptions{
 		LowerBound: pre,
-		UpperBound: keyUpperBound(pre), // excluding
+		UpperBound: b.keyUpperBound(pre), // excluding
 	})
 	if err != nil {
 		return services.NewRetryableError(err)
@@ -201,7 +203,7 @@ func (b *PebbleBinding) ScanPrefix(prefix string, callback api.ScanKeyValue) err
 	for iter.First(); iter.Valid(); iter.Next() {
 		val := make([]byte, len(iter.Value()))
 		copy(val, iter.Value())
-		if err := callback(string(iter.Key()), val); err != nil {
+		if !callback(string(iter.Key()), val) {
 			break
 		}
 	}
@@ -226,9 +228,21 @@ func (b *PebbleBinding) ScanRange(start, end string, callback api.ScanKeyValue) 
 	for iter.First(); iter.Valid(); iter.Next() {
 		val := make([]byte, len(iter.Value()))
 		copy(val, iter.Value())
-		if err := callback(string(iter.Key()), val); err != nil {
+		if !callback(string(iter.Key()), val) {
 			break
 		}
 	}
 	return iter.Close()
+}
+
+func (b *PebbleBinding) keyUpperBound(prefix []byte) []byte {
+	end := make([]byte, len(prefix))
+	copy(end, prefix)
+	for i := len(end) - 1; i >= 0; i-- {
+		end[i] = end[i] + 1
+		if end[i] != 0 {
+			return end[:i+1]
+		}
+	}
+	return nil // no upper-bound
 }

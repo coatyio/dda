@@ -24,13 +24,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	StoreService_Get_FullMethodName         = "/dda.store.v1.StoreService/Get"
-	StoreService_Set_FullMethodName         = "/dda.store.v1.StoreService/Set"
-	StoreService_Delete_FullMethodName      = "/dda.store.v1.StoreService/Delete"
-	StoreService_DeleteAll_FullMethodName   = "/dda.store.v1.StoreService/DeleteAll"
-	StoreService_DeleteRange_FullMethodName = "/dda.store.v1.StoreService/DeleteRange"
-	StoreService_ScanPrefix_FullMethodName  = "/dda.store.v1.StoreService/ScanPrefix"
-	StoreService_ScanRange_FullMethodName   = "/dda.store.v1.StoreService/ScanRange"
+	StoreService_Get_FullMethodName          = "/dda.store.v1.StoreService/Get"
+	StoreService_Set_FullMethodName          = "/dda.store.v1.StoreService/Set"
+	StoreService_Delete_FullMethodName       = "/dda.store.v1.StoreService/Delete"
+	StoreService_DeleteAll_FullMethodName    = "/dda.store.v1.StoreService/DeleteAll"
+	StoreService_DeletePrefix_FullMethodName = "/dda.store.v1.StoreService/DeletePrefix"
+	StoreService_DeleteRange_FullMethodName  = "/dda.store.v1.StoreService/DeleteRange"
+	StoreService_ScanPrefix_FullMethodName   = "/dda.store.v1.StoreService/ScanPrefix"
+	StoreService_ScanRange_FullMethodName    = "/dda.store.v1.StoreService/ScanRange"
 )
 
 // StoreServiceClient is the client API for StoreService service.
@@ -52,7 +53,7 @@ type StoreServiceClient interface {
 	// Set sets the value for the given KeyValue pair. It overwrites any previous
 	// value for that key.
 	//
-	// If a value is not present, a gRPC error with status code INVALIDARGUMENT
+	// If a value is not present, a gRPC error with status code INVALID_ARGUMENT
 	// (3) is signaled. Otherwise, if the operation fails, a gRPC error with
 	// status code UNAVAILABLE (14) is signaled.
 	Set(ctx context.Context, in *KeyValue, opts ...grpc.CallOption) (*Ack, error)
@@ -66,6 +67,13 @@ type StoreServiceClient interface {
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
 	DeleteAll(ctx context.Context, in *DeleteAllParams, opts ...grpc.CallOption) (*Ack, error)
+	// DeletePrefix deletes all of the keys (and values) that start with the given
+	// prefix. Key strings are ordered lexicographically by their underlying byte
+	// representation, i.e. UTF-8 encoding.
+	//
+	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
+	// signaled.
+	DeletePrefix(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Ack, error)
 	// DeleteRange deletes all of the keys (and values) in the right-open Range
 	// [start,end) (inclusive on start, exclusive on end). Key strings are ordered
 	// lexicographically by their underlying byte representation, i.e. UTF-8
@@ -74,12 +82,17 @@ type StoreServiceClient interface {
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
 	DeleteRange(ctx context.Context, in *Range, opts ...grpc.CallOption) (*Ack, error)
-	// ScanPrefix iterates over key-value pairs whose keys match the given prefix
-	// Key in key order. Key strings are ordered lexicographically by their
+	// ScanPrefix iterates over key-value pairs whose keys start with the given
+	// prefix Key in key order. Key strings are ordered lexicographically by their
 	// underlying byte representation, i.e. UTF-8 encoding.
 	//
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange operations while receiving data from the stream as such calls
+	// may block until the stream is closed. Instead, accumulate key-value pairs
+	// and issue such operations after scanning is finished.
 	ScanPrefix(ctx context.Context, in *Key, opts ...grpc.CallOption) (StoreService_ScanPrefixClient, error)
 	// ScanRange iterates over a given right-open Range of key-value pairs in key
 	// order (inclusive on start, exclusive on end). Key strings are ordered
@@ -91,6 +104,11 @@ type StoreServiceClient interface {
 	//
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange operations while receiving data from the stream as such calls
+	// may block until the stream is closed. Instead, accumulate key-value pairs
+	// and issue such operations after scanning is finished.
 	ScanRange(ctx context.Context, in *Range, opts ...grpc.CallOption) (StoreService_ScanRangeClient, error)
 }
 
@@ -132,6 +150,15 @@ func (c *storeServiceClient) Delete(ctx context.Context, in *Key, opts ...grpc.C
 func (c *storeServiceClient) DeleteAll(ctx context.Context, in *DeleteAllParams, opts ...grpc.CallOption) (*Ack, error) {
 	out := new(Ack)
 	err := c.cc.Invoke(ctx, StoreService_DeleteAll_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeServiceClient) DeletePrefix(ctx context.Context, in *Key, opts ...grpc.CallOption) (*Ack, error) {
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, StoreService_DeletePrefix_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +257,7 @@ type StoreServiceServer interface {
 	// Set sets the value for the given KeyValue pair. It overwrites any previous
 	// value for that key.
 	//
-	// If a value is not present, a gRPC error with status code INVALIDARGUMENT
+	// If a value is not present, a gRPC error with status code INVALID_ARGUMENT
 	// (3) is signaled. Otherwise, if the operation fails, a gRPC error with
 	// status code UNAVAILABLE (14) is signaled.
 	Set(context.Context, *KeyValue) (*Ack, error)
@@ -244,6 +271,13 @@ type StoreServiceServer interface {
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
 	DeleteAll(context.Context, *DeleteAllParams) (*Ack, error)
+	// DeletePrefix deletes all of the keys (and values) that start with the given
+	// prefix. Key strings are ordered lexicographically by their underlying byte
+	// representation, i.e. UTF-8 encoding.
+	//
+	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
+	// signaled.
+	DeletePrefix(context.Context, *Key) (*Ack, error)
 	// DeleteRange deletes all of the keys (and values) in the right-open Range
 	// [start,end) (inclusive on start, exclusive on end). Key strings are ordered
 	// lexicographically by their underlying byte representation, i.e. UTF-8
@@ -252,12 +286,17 @@ type StoreServiceServer interface {
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
 	DeleteRange(context.Context, *Range) (*Ack, error)
-	// ScanPrefix iterates over key-value pairs whose keys match the given prefix
-	// Key in key order. Key strings are ordered lexicographically by their
+	// ScanPrefix iterates over key-value pairs whose keys start with the given
+	// prefix Key in key order. Key strings are ordered lexicographically by their
 	// underlying byte representation, i.e. UTF-8 encoding.
 	//
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange operations while receiving data from the stream as such calls
+	// may block until the stream is closed. Instead, accumulate key-value pairs
+	// and issue such operations after scanning is finished.
 	ScanPrefix(*Key, StoreService_ScanPrefixServer) error
 	// ScanRange iterates over a given right-open Range of key-value pairs in key
 	// order (inclusive on start, exclusive on end). Key strings are ordered
@@ -269,6 +308,11 @@ type StoreServiceServer interface {
 	//
 	// If the operation fails, a gRPC error with status code UNAVAILABLE (14) is
 	// signaled.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange operations while receiving data from the stream as such calls
+	// may block until the stream is closed. Instead, accumulate key-value pairs
+	// and issue such operations after scanning is finished.
 	ScanRange(*Range, StoreService_ScanRangeServer) error
 	mustEmbedUnimplementedStoreServiceServer()
 }
@@ -288,6 +332,9 @@ func (UnimplementedStoreServiceServer) Delete(context.Context, *Key) (*Ack, erro
 }
 func (UnimplementedStoreServiceServer) DeleteAll(context.Context, *DeleteAllParams) (*Ack, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAll not implemented")
+}
+func (UnimplementedStoreServiceServer) DeletePrefix(context.Context, *Key) (*Ack, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeletePrefix not implemented")
 }
 func (UnimplementedStoreServiceServer) DeleteRange(context.Context, *Range) (*Ack, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRange not implemented")
@@ -383,6 +430,24 @@ func _StoreService_DeleteAll_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StoreService_DeletePrefix_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Key)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServiceServer).DeletePrefix(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreService_DeletePrefix_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServiceServer).DeletePrefix(ctx, req.(*Key))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _StoreService_DeleteRange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Range)
 	if err := dec(in); err != nil {
@@ -465,6 +530,10 @@ var StoreService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAll",
 			Handler:    _StoreService_DeleteAll_Handler,
+		},
+		{
+			MethodName: "DeletePrefix",
+			Handler:    _StoreService_DeletePrefix_Handler,
 		},
 		{
 			MethodName: "DeleteRange",

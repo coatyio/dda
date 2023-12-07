@@ -323,6 +323,67 @@ proto.dda.store.v1.StoreServicePromiseClient.prototype.deleteAll =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.dda.store.v1.Key,
+ *   !proto.dda.store.v1.Ack>}
+ */
+const methodDescriptor_StoreService_DeletePrefix = new grpc.web.MethodDescriptor(
+  '/dda.store.v1.StoreService/DeletePrefix',
+  grpc.web.MethodType.UNARY,
+  proto.dda.store.v1.Key,
+  proto.dda.store.v1.Ack,
+  /**
+   * @param {!proto.dda.store.v1.Key} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.dda.store.v1.Ack.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.dda.store.v1.Key} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.dda.store.v1.Ack)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.dda.store.v1.Ack>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.dda.store.v1.StoreServiceClient.prototype.deletePrefix =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/dda.store.v1.StoreService/DeletePrefix',
+      request,
+      metadata || {},
+      methodDescriptor_StoreService_DeletePrefix,
+      callback);
+};
+
+
+/**
+ * @param {!proto.dda.store.v1.Key} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.dda.store.v1.Ack>}
+ *     Promise that resolves to the response
+ */
+proto.dda.store.v1.StoreServicePromiseClient.prototype.deletePrefix =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/dda.store.v1.StoreService/DeletePrefix',
+      request,
+      metadata || {},
+      methodDescriptor_StoreService_DeletePrefix);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.dda.store.v1.Range,
  *   !proto.dda.store.v1.Ack>}
  */

@@ -15,11 +15,11 @@ package api
 import "github.com/coatyio/dda/config"
 
 // ScanKeyValue is a callback function invoked by a scanning function on each
-// matching key-value pair. If an error is returned scanning stops and no
-// further callbacks are invoked.
+// matching key-value pair. Returns true to continue scanning; false to stop
+// scanning so that no further callbacks are invoked.
 //
 // It is safe to modify the contents of the value argument.
-type ScanKeyValue = func(key string, value []byte) error
+type ScanKeyValue = func(key string, value []byte) bool
 
 // Api is an interface for local persistent or in-memory key-value storage to be
 // provided by a single DDA sidecar or instance. The storage API is implemented
@@ -78,6 +78,12 @@ type Api interface {
 	// error is returned in case the operation fails.
 	DeleteAll() error
 
+	// DeletePrefix deletes all of the keys (and values) that start with the
+	// given prefix. Key strings are ordered lexicographically by their
+	// underlying byte representation, i.e. UTF-8 encoding. A binding-specific
+	// error is returned in case the operation fails.
+	DeletePrefix(prefix string) error
+
 	// DeleteRange deletes all of the keys (and values) in the right-open range
 	// [start,end) (inclusive on start, exclusive on end). Key strings are
 	// ordered lexicographically by their underlying byte representation, i.e.
@@ -85,12 +91,17 @@ type Api interface {
 	// operation fails.
 	DeleteRange(start, end string) error
 
-	// ScanPrefix iterates over key-value pairs whose keys match the given
+	// ScanPrefix iterates over key-value pairs whose keys start with the given
 	// prefix in key order. Key strings are ordered lexicographically by their
 	// underlying byte representation, i.e. UTF-8 encoding. A binding-specific
 	// error is returned in case the operation fails.
 	//
 	// It is safe to modify the contents of the callback value byte slice.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange store operations in the callback as such calls may block
+	// forever. Instead, accumulate key-value pairs and issue such operations
+	// after scanning is finished.
 	ScanPrefix(prefix string, callback ScanKeyValue) error
 
 	// ScanRange iterates over a given right-open range of key-value pairs in
@@ -103,5 +114,10 @@ type Api interface {
 	// represent a time range with a sortable time encoding like RFC3339.
 	//
 	// It is safe to modify the contents of the callback value byte slice.
+	//
+	// It is not safe to invoke Set, Delete, DeleteAll, DeletePrefix, and
+	// DeleteRange store operations in the callback as such calls may block
+	// forever. Instead, accumulate key-value pairs and issue such operations
+	// after scanning is finished.
 	ScanRange(start, end string, callback ScanKeyValue) error
 }

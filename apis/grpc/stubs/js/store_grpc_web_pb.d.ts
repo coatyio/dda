@@ -36,6 +36,13 @@ export class StoreServiceClient {
                response: store_pb.Ack) => void
   ): grpcWeb.ClientReadableStream<store_pb.Ack>;
 
+  deletePrefix(
+    request: store_pb.Key,
+    metadata: grpcWeb.Metadata | undefined,
+    callback: (err: grpcWeb.RpcError,
+               response: store_pb.Ack) => void
+  ): grpcWeb.ClientReadableStream<store_pb.Ack>;
+
   deleteRange(
     request: store_pb.Range,
     metadata: grpcWeb.Metadata | undefined,
@@ -77,6 +84,11 @@ export class StoreServicePromiseClient {
 
   deleteAll(
     request: store_pb.DeleteAllParams,
+    metadata?: grpcWeb.Metadata
+  ): Promise<store_pb.Ack>;
+
+  deletePrefix(
+    request: store_pb.Key,
     metadata?: grpcWeb.Metadata
   ): Promise<store_pb.Ack>;
 

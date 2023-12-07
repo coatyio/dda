@@ -99,9 +99,9 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 	})
 
 	t.Run("Iterate non-existent keys", func(t *testing.T) {
-		err := dda.ScanRange("", "xxxx", func(key string, value []byte) error {
+		err := dda.ScanRange("", "xxxx", func(key string, value []byte) bool {
 			assert.FailNow(t, "Scanning unexpected key")
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 	})
@@ -177,13 +177,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanPrefix on pre* stopped", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanPrefix("pre", func(key string, value []byte) error {
+		err := dda.ScanPrefix("pre", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			if len(keys) == 1 {
-				return fmt.Errorf("stop after first callback")
-			}
-			return nil
+			return len(keys) != 1 // stop after first callback
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"pre"}, keys)
@@ -191,10 +188,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanPrefix on pre*", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanPrefix("pre", func(key string, value []byte) error {
+		err := dda.ScanPrefix("pre", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"pre", "pref", "prefix", "prefix1", "prefix2"}, keys)
@@ -202,10 +199,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanPrefix on pref*", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanPrefix("pref", func(key string, value []byte) error {
+		err := dda.ScanPrefix("pref", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"pref", "prefix", "prefix1", "prefix2"}, keys)
@@ -213,10 +210,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanPrefix on prefix*", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanPrefix("prefix", func(key string, value []byte) error {
+		err := dda.ScanPrefix("prefix", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"prefix", "prefix1", "prefix2"}, keys)
@@ -224,13 +221,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanRange [prefix,prefix2) stopped", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanRange("prefix", "prefix2", func(key string, value []byte) error {
+		err := dda.ScanRange("prefix", "prefix2", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			if len(keys) == 1 {
-				return fmt.Errorf("stop after first callback")
-			}
-			return nil
+			return len(keys) != 1 // stop after first callback
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"prefix"}, keys)
@@ -238,10 +232,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanRange [prefix,prefix2)", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanRange("prefix", "prefix2", func(key string, value []byte) error {
+		err := dda.ScanRange("prefix", "prefix2", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"prefix", "prefix1"}, keys)
@@ -249,10 +243,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanRange [pre,pref)", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanRange("pre", "pref", func(key string, value []byte) error {
+		err := dda.ScanRange("pre", "pref", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"pre"}, keys)
@@ -260,10 +254,10 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanRange [pre,prf)", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanRange("pre", "prf", func(key string, value []byte) error {
+		err := dda.ScanRange("pre", "prf", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"pre", "pref", "prefix", "prefix1", "prefix2"}, keys)
@@ -271,21 +265,31 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 
 	t.Run("ScanRange [prf,prd)", func(t *testing.T) {
 		keys := make([]string, 0)
-		err := dda.ScanRange("prf", "prd", func(key string, value []byte) error {
+		err := dda.ScanRange("prf", "prd", func(key string, value []byte) bool {
 			assert.Equal(t, key, string(value))
 			keys = append(keys, key)
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{}, keys)
 	})
 
+	t.Run("DeletePrefix prefix", func(t *testing.T) {
+		err := dda.DeletePrefix("prefix")
+		assert.NoError(t, err)
+		err = dda.ScanPrefix("prefix", func(key string, value []byte) bool {
+			assert.FailNow(t, "Scanning unexpected key")
+			return true
+		})
+		assert.NoError(t, err)
+	})
+
 	t.Run("DeleteRange [pre,prf)", func(t *testing.T) {
 		err := dda.DeleteRange("pre", "prf")
 		assert.NoError(t, err)
-		err = dda.ScanRange("pre", "prf", func(key string, value []byte) error {
+		err = dda.ScanRange("pre", "prf", func(key string, value []byte) bool {
 			assert.FailNow(t, "Scanning unexpected key")
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 	})
@@ -293,9 +297,9 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 	t.Run("DeleteAll remaining", func(t *testing.T) {
 		err := dda.DeleteAll()
 		assert.NoError(t, err)
-		err = dda.ScanRange("a", "z", func(key string, value []byte) error {
+		err = dda.ScanRange("a", "z", func(key string, value []byte) bool {
 			assert.FailNow(t, "Scanning unexpected key")
-			return nil
+			return true
 		})
 		assert.NoError(t, err)
 	})
@@ -367,8 +371,8 @@ func RunBenchStoreService(b *testing.B, srv *config.ConfigStoreService) {
 	// growing b.N
 	b.Run("Scan all", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
-			if err := dda.ScanRange(kvs[0].k, kvs[kvsc-1].k, func(k string, v []byte) error {
-				return nil
+			if err := dda.ScanRange(kvs[0].k, kvs[kvsc-1].k, func(k string, v []byte) bool {
+				return true
 			}); err != nil {
 				b.FailNow()
 			}
@@ -379,8 +383,8 @@ func RunBenchStoreService(b *testing.B, srv *config.ConfigStoreService) {
 	// growing b.N
 	b.Run("Scan prefix all", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
-			if err := dda.ScanPrefix("0", func(k string, v []byte) error {
-				return nil
+			if err := dda.ScanPrefix("0", func(k string, v []byte) bool {
+				return true
 			}); err != nil {
 				b.FailNow()
 			}
