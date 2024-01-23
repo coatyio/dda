@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 // Package store_test provides end-to-end test and benchmark functions for the
-// storage service to be tested over different storage bindings.
+// storage service to be tested with different storage bindings.
 package store_test
 
 import (
@@ -35,7 +35,7 @@ var testStoreSetup = make(testdata.StoreSetup)
 func init() {
 	// Set up unique storage locations in temp directory.
 	s := testServices["Pebble-persistent"]
-	testStoreSetup["pebble"] = &testdata.StoreSetupOptions{
+	testStoreSetup[s.Engine] = &testdata.StoreSetupOptions{
 		StorageDir: testdata.CreateStoreLocation(s),
 	}
 }
@@ -272,6 +272,28 @@ func RunTestStoreService(t *testing.T, srv config.ConfigStoreService) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, []string{}, keys)
+	})
+
+	t.Run("ScanRangeB [nil,nil)", func(t *testing.T) {
+		keys := make([][]byte, 0)
+		err := dda.ScanRangeB(nil, nil, func(key, value []byte) bool {
+			assert.Equal(t, key, value)
+			keys = append(keys, key)
+			return true
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, [][]byte{[]byte(""), []byte("prd"), []byte("pre"), []byte("pref"), []byte("prefix"), []byte("prefix1"), []byte("prefix2"), []byte("prf")}, keys)
+	})
+
+	t.Run("ScanRangeReverseB [nil,nil)", func(t *testing.T) {
+		keys := make([][]byte, 0)
+		err := dda.ScanRangeReverseB(nil, nil, func(key, value []byte) bool {
+			assert.Equal(t, key, value)
+			keys = append(keys, key)
+			return true
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, [][]byte{[]byte("prf"), []byte("prefix2"), []byte("prefix1"), []byte("prefix"), []byte("pref"), []byte("pre"), []byte("prd"), []byte("")}, keys)
 	})
 
 	t.Run("DeletePrefix prefix", func(t *testing.T) {

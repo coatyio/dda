@@ -90,7 +90,7 @@ func RunWithComSetup(run func(), setup CommunicationSetup) {
 		return cleanup
 	}
 
-	runWithSetup(run, setupFunc)
+	RunWithSetup(run, setupFunc)
 }
 
 // RunWithStoreSetup runs the given function with the given store setup.
@@ -114,10 +114,11 @@ func RunWithStoreSetup(run func(), setup StoreSetup) {
 		return cleanup
 	}
 
-	runWithSetup(run, setupFunc)
+	RunWithSetup(run, setupFunc)
 }
 
-func runWithSetup(run func(), setup func() map[string]func()) {
+// RunWithSetup runs the given function with the given setup.
+func RunWithSetup(run func(), setup func() map[string]func()) {
 	ddaLog := os.Getenv("DDA_TEST_LOG") == "true"
 	enableLog := func() {}
 	if !ddaLog {
@@ -155,6 +156,18 @@ func NewStoreConfig(srv config.ConfigStoreService) *config.Config {
 	cfg := config.New()
 	cfg.Services.Store = srv
 	cfg.Services.Com.Disabled = true
+	cfg.Apis.Grpc.Disabled = true
+	cfg.Apis.GrpcWeb.Disabled = true
+	return cfg
+}
+
+// NewStateConfig creates a new Config with the given state and com service. By
+// default, Client API services are disabled in the returned configuration.
+func NewStateConfig(cluster string, srv config.ConfigStateService, com config.ConfigComService) *config.Config {
+	cfg := config.New()
+	cfg.Cluster = cluster
+	cfg.Services.State = srv
+	cfg.Services.Com = com
 	cfg.Apis.Grpc.Disabled = true
 	cfg.Apis.GrpcWeb.Disabled = true
 	return cfg

@@ -14,11 +14,13 @@ import (
 
 	"github.com/coatyio/dda/apis"
 	"github.com/coatyio/dda/apis/grpc/stubs/golang/com"
+	"github.com/coatyio/dda/apis/grpc/stubs/golang/state"
 	"github.com/coatyio/dda/apis/grpc/stubs/golang/store"
 	"github.com/coatyio/dda/config"
 	"github.com/coatyio/dda/plog"
 	"github.com/coatyio/dda/services"
 	comapi "github.com/coatyio/dda/services/com/api"
+	stateapi "github.com/coatyio/dda/services/state/api"
 	storeapi "github.com/coatyio/dda/services/store/api"
 	"github.com/google/uuid"
 	rpc "google.golang.org/grpc"
@@ -39,6 +41,8 @@ type grpcServer struct {
 	comApi comapi.Api
 	store.UnimplementedStoreServiceServer
 	storeApi storeapi.Api
+	state.UnimplementedStateServiceServer
+	stateApi stateapi.Api
 	mu       sync.RWMutex // protects following fields
 	srv      *rpc.Server
 	grpcWebServer
@@ -49,10 +53,11 @@ type grpcServer struct {
 // New returns an apis.ApiServer interface that implements an uninitialized gRPC
 // server exposing the peripheral DDA services to gRPC and gRPC-Web clients. To
 // start the returned server, invoke Open with a gRPC-enabled DDA configuration.
-func New(com comapi.Api, store storeapi.Api) apis.ApiServer {
+func New(com comapi.Api, store storeapi.Api, state stateapi.Api) apis.ApiServer {
 	return &grpcServer{
 		comApi:          com,
 		storeApi:        store,
+		stateApi:        state,
 		actionCallbacks: make(map[string]comapi.ActionCallback),
 		queryCallbacks:  make(map[string]comapi.QueryCallback),
 	}
@@ -93,6 +98,7 @@ func (s *grpcServer) Open(cfg *config.Config) error {
 		s.srv = rpc.NewServer(srvOpts...)
 		com.RegisterComServiceServer(s.srv, s)
 		store.RegisterStoreServiceServer(s.srv, s)
+		state.RegisterStateServiceServer(s.srv, s)
 
 		plog.Printf("Open gRPC server listening on address %s...\n", address)
 
@@ -643,6 +649,89 @@ func (s *grpcServer) ScanRange(r *store.Range, stream store.StoreService_ScanRan
 		plog.Println(err)
 	}
 	return err
+}
+
+// State API
+
+func (s *grpcServer) ProposeInput(ctx context.Context, in *state.Input) (*state.Ack, error) {
+	if s.stateApi == nil {
+		return nil, s.serviceDisabledError("state")
+	}
+	err := s.stateApi.ProposeInput(ctx, &stateapi.Input{
+		Op:    stateapi.InputOp(in.GetOp()),
+		Key:   in.GetKey(),
+		Value: in.GetValue(),
+	})
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed: %v", err)
+		plog.Println(err)
+		return nil, err
+	}
+	return &state.Ack{}, nil
+}
+
+func (s *grpcServer) ObserveStateChange(p *state.ObserveStateChangeParams, stream state.StateService_ObserveStateChangeServer) error {
+	if s.stateApi == nil {
+		return s.serviceDisabledError("state")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch, err := s.stateApi.ObserveStateChange(ctx)
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed observing state changes: %v", err)
+		plog.Println(err)
+		return err
+	}
+
+	for {
+		select {
+		case in, ok := <-ch:
+			if !ok {
+				// End stream if channel has been closed.
+				return nil
+			}
+			if err := stream.Send(&state.Input{Op: state.InputOperation(in.Op), Key: in.Key, Value: in.Value}); err != nil {
+				// Do not return err, but keep stream alive for further transmissions.
+				plog.Println(err)
+			}
+		case <-stream.Context().Done(): // server streaming call canceled by client
+			return stream.Context().Err()
+		}
+	}
+}
+
+func (s *grpcServer) ObserveMembershipChange(p *state.ObserveMembershipChangeParams, stream state.StateService_ObserveMembershipChangeServer) error {
+	if s.stateApi == nil {
+		return s.serviceDisabledError("state")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch, err := s.stateApi.ObserveMembershipChange(ctx)
+	if err != nil {
+		err = status.Errorf(s.codeByError(err), "failed observing membership changes: %v", err)
+		plog.Println(err)
+		return err
+	}
+
+	for {
+		select {
+		case mc, ok := <-ch:
+			if !ok {
+				// End stream if channel has been closed.
+				return nil
+			}
+			if err := stream.Send(&state.MembershipChange{Id: mc.Id, Joined: mc.Joined}); err != nil {
+				// Do not return err, but keep stream alive for further transmissions.
+				plog.Println(err)
+			}
+		case <-stream.Context().Done(): // server streaming call canceled by client
+			return stream.Context().Err()
+		}
+	}
 }
 
 // Utils

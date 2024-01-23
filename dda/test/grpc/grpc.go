@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/coatyio/dda/apis/grpc/stubs/golang/com"
+	"github.com/coatyio/dda/apis/grpc/stubs/golang/state"
 	"github.com/coatyio/dda/apis/grpc/stubs/golang/store"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -48,6 +49,16 @@ func OpenGrpcClientStore(address, caCertFile string) (store.StoreServiceClient, 
 		return nil, nil, err
 	}
 	return store.NewStoreServiceClient(conn), closer, err
+}
+
+// OpenGrpcClientState creates and connects a gRPC client on the given address
+// and returns the state service client and a function to close it later.
+func OpenGrpcClientState(address, caCertFile string) (state.StateServiceClient, func(), error) {
+	conn, closer, err := OpenGrpcClient(address, caCertFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	return state.NewStateServiceClient(conn), closer, err
 }
 
 func OpenGrpcClient(address, caCertFile string) (*grpc.ClientConn, func(), error) {

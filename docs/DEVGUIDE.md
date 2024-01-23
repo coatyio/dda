@@ -54,11 +54,12 @@ broker, such as [emqx](https://www.emqx.io/) or
 ## Encoding Application Data
 
 Principally, application data transmitted to/received from a peripheral service
-must be encoded/decoded in a binary serialization format by the application.
-Typical examples include UTF-8 encoded byte arrays for textual representations,
-such as plain strings or [JSON](https://www.json.org), and binary
-representations, such as [Protobuf](https://protobuf.dev/) and
-[MsgPack](https://msgpack.org/), for structured data.
+is an opaque binary blob to DDA and must be encoded/decoded in a binary
+serialization format by the application. Typical examples include UTF-8 encoded
+byte arrays for textual representations, such as plain strings or
+[JSON](https://www.json.org), and binary representations, such as
+[Protobuf](https://protobuf.dev/) and [MsgPack](https://msgpack.org/), for
+structured data.
 
 An application may choose to use a uniform binary encoding for all services or
 use specific ones for specific services. You may also use _different_ encodings

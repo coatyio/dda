@@ -5,6 +5,7 @@
 package dda
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/coatyio/dda/apis"
@@ -13,6 +14,8 @@ import (
 	"github.com/coatyio/dda/plog"
 	"github.com/coatyio/dda/services/com"
 	comapi "github.com/coatyio/dda/services/com/api"
+	"github.com/coatyio/dda/services/state"
+	stateapi "github.com/coatyio/dda/services/state/api"
 	"github.com/coatyio/dda/services/store"
 	storeapi "github.com/coatyio/dda/services/store/api"
 )
@@ -23,6 +26,9 @@ type comApi = comapi.Api
 // storeApi is a non-exposed type alias for the local storage API interface.
 type storeApi = storeapi.Api
 
+// storeApi is a non-exposed type alias for the local storage API interface.
+type stateApi = stateapi.Api
+
 // Dda represents a Data Distribution Agent with peripheral services and public
 // client APIs. It must be created with New() to ensure that all services and
 // APIs are correctly initialized.
@@ -30,7 +36,7 @@ type Dda struct {
 	cfg      *config.Config // agent configuration
 	comApi                  // Communication API
 	storeApi                // Local storage API
-	// stateApi                 // Distributed state synchronization API
+	stateApi                // State synchronization API
 
 	grpcServer apis.ApiServer
 }
@@ -46,7 +52,7 @@ func New(cfg *config.Config) (*Dda, error) {
 		return nil, err
 	}
 
-	config := *cfg // copy to make it immutable inside of package
+	config := *cfg // copy to not mutate passed in config
 	dda := Dda{cfg: &config}
 
 	if !config.Services.Com.Disabled {
@@ -67,8 +73,20 @@ func New(cfg *config.Config) (*Dda, error) {
 		}
 	}
 
+	if !config.Services.State.Disabled {
+		if config.Services.Com.Disabled {
+			return nil, fmt.Errorf("Dda cannot be created: state service requires com service to be enabled")
+		}
+		stateApi, err := state.New(config.Services.State.Protocol)
+		if err != nil {
+			return nil, err
+		} else {
+			dda.stateApi = *stateApi
+		}
+	}
+
 	if !config.Apis.Grpc.Disabled {
-		dda.grpcServer = grpc.New(dda.comApi, dda.storeApi)
+		dda.grpcServer = grpc.New(dda.comApi, dda.storeApi, dda.stateApi)
 	}
 
 	plog.Printf("Created DDA %+v", dda.Identity())
@@ -99,6 +117,12 @@ func (d *Dda) Open(timeout time.Duration) error {
 		}
 	}
 
+	if d.stateApi != nil {
+		if err := d.stateApi.Open(d.cfg, d.comApi); err != nil {
+			return err
+		}
+	}
+
 	if d.grpcServer != nil {
 		if err := d.grpcServer.Open(d.cfg); err != nil {
 			return err
@@ -113,16 +137,20 @@ func (d *Dda) Open(timeout time.Duration) error {
 // Close synchronously shuts down all configured DDA services and APIs
 // gracefully and releases associated resources.
 func (d *Dda) Close() {
-	if d.comApi != nil {
-		<-d.comApi.Close()
+	if d.grpcServer != nil {
+		d.grpcServer.Close()
+	}
+
+	if d.stateApi != nil {
+		d.stateApi.Close()
 	}
 
 	if d.storeApi != nil {
 		d.storeApi.Close()
 	}
 
-	if d.grpcServer != nil {
-		d.grpcServer.Close()
+	if d.comApi != nil { // finally
+		<-d.comApi.Close()
 	}
 
 	plog.Printf("Closed DDA %+v", d.Identity())

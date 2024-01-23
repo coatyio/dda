@@ -5,21 +5,28 @@
 // instance. This API is implemented by storage bindings that use specific
 // underlying embedded, i.e. file-based key-value storage systems, like Pebble,
 // LevelDB, RocksDB, BoltDB, SQLite, and others. Storage uses a key-value data
-// model where keys are strings and values are represented as arbitrary binary
-// data. Such embedded storage is typically implemented using B+ Trees for
-// read-intensive workloads and log-structured merge trees (LSM) with
-// write-ahead log (WAL) for write-intensive workloads. You may choose a storage
-// binding that best fits your application's needs.
+// model where keys are strings and values are opaque binary blobs. Such
+// embedded storage is typically implemented using B+ Trees for read-intensive
+// workloads and log-structured merge trees (LSM) with write-ahead log (WAL) for
+// write-intensive workloads. You may choose a storage binding that best fits
+// your application's needs.
 package api
 
 import "github.com/coatyio/dda/config"
 
 // ScanKeyValue is a callback function invoked by a scanning function on each
-// matching key-value pair. Returns true to continue scanning; false to stop
-// scanning so that no further callbacks are invoked.
+// matching key-value pair with keys as strings. Returns true to continue
+// scanning; false to stop scanning so that no further callbacks are invoked.
 //
 // It is safe to modify the contents of the value argument.
 type ScanKeyValue = func(key string, value []byte) bool
+
+// ScanKeyValueB is a callback function invoked by a scanning function on each
+// matching key-value pair with key as byte slices. Returns true to continue
+// scanning; false to stop scanning so that no further callbacks are invoked.
+//
+// It is safe to modify the contents of the value argument.
+type ScanKeyValueB = func(key []byte, value []byte) bool
 
 // Api is an interface for local persistent or in-memory key-value storage to be
 // provided by a single DDA sidecar or instance. The storage API is implemented
@@ -45,9 +52,9 @@ type ScanKeyValue = func(key string, value []byte) bool
 type Api interface {
 
 	// Open synchronously opens the storage maintained by the underlying storage
-	// engine using the supplied configuration. Upon successful opening or if
-	// the binding has been opened already, nil is returned. A binding-specific
-	// error is returned in case the operation fails.
+	// engine using the supplied DDA configuration. Upon successful opening or
+	// if the binding has been opened already, nil is returned. A
+	// binding-specific error is returned in case the operation fails.
 	Open(cfg *config.Config) error
 
 	// Close synchronously closes the storage maintained by the underlying
@@ -63,6 +70,9 @@ type Api interface {
 	// It is safe to modify the contents of the returned byte slice.
 	Get(key string) ([]byte, error)
 
+	// GetB is identical to [Get] with key as a byte slice.
+	GetB(key []byte) ([]byte, error)
+
 	// Set sets the value for the given key. It overwrites any previous value
 	// for that key. If value is nil or []byte(nil), or if the operation fails a
 	// binding-specific error is returned.
@@ -70,9 +80,15 @@ type Api interface {
 	// It is safe to modify the contents of the value after Set returns.
 	Set(key string, value []byte) error
 
+	// SetB is identical to [Set] with key as a byte slice.
+	SetB(key []byte, value []byte) error
+
 	// Delete deletes the value for the given key. A binding-specific error is
 	// returned in case the operation fails.
 	Delete(key string) error
+
+	// DeleteB is identical to [Delete] with prefix as a byte slice.
+	DeleteB(key []byte) error
 
 	// DeleteAll deletes all key-value pairs in the store. A binding-specific
 	// error is returned in case the operation fails.
@@ -84,6 +100,9 @@ type Api interface {
 	// error is returned in case the operation fails.
 	DeletePrefix(prefix string) error
 
+	// DeletePrefixB is identical to [DeletePrefix] with prefix as a byte slice.
+	DeletePrefixB(prefix []byte) error
+
 	// DeleteRange deletes all of the keys (and values) in the right-open range
 	// [start,end) (inclusive on start, exclusive on end). Key strings are
 	// ordered lexicographically by their underlying byte representation, i.e.
@@ -91,10 +110,15 @@ type Api interface {
 	// operation fails.
 	DeleteRange(start, end string) error
 
-	// ScanPrefix iterates over key-value pairs whose keys start with the given
-	// prefix in key order. Key strings are ordered lexicographically by their
-	// underlying byte representation, i.e. UTF-8 encoding. A binding-specific
-	// error is returned in case the operation fails.
+	// DeleteRangeB is identical to [DeleteRange] with start and end as byte
+	// slices.
+	DeleteRangeB(start, end []byte) error
+
+	// ScanPrefix iterates in ascending key order over key-value pairs whose
+	// keys start with the given prefix. Key strings are ordered
+	// lexicographically by their underlying byte representation, i.e. UTF-8
+	// encoding. A binding-specific error is returned in case the operation
+	// fails.
 	//
 	// It is safe to modify the contents of the callback value byte slice.
 	//
@@ -104,11 +128,17 @@ type Api interface {
 	// after scanning is finished.
 	ScanPrefix(prefix string, callback ScanKeyValue) error
 
-	// ScanRange iterates over a given right-open range of key-value pairs in
-	// key order (inclusive on start, exclusive on end). Key strings are ordered
-	// lexicographically by their underlying byte representation, i.e. UTF-8
-	// encoding. A binding-specific error is returned in case the operation
-	// fails.
+	// ScanPrefixB is identical to [ScanPrefix] with prefix as a byte slice.
+	ScanPrefixB(prefix []byte, callback ScanKeyValueB) error
+
+	// ScanRange iterates in ascending key order over a right-open range
+	// [start,end) of key-value pairs (inclusive on start, exclusive on end).
+	// Key strings are ordered lexicographically by their underlying byte
+	// representation, i.e. UTF-8 encoding. A binding-specific error is returned
+	// in case the operation fails.
+	//
+	// You may specify start and/or end as nil to start/end scanning with the
+	// first/last key in the store.
 	//
 	// For example, this function can be used to iterate over keys which
 	// represent a time range with a sortable time encoding like RFC3339.
@@ -120,4 +150,19 @@ type Api interface {
 	// forever. Instead, accumulate key-value pairs and issue such operations
 	// after scanning is finished.
 	ScanRange(start, end string, callback ScanKeyValue) error
+
+	// ScanRangeB is identical to [ScanRange] with start and end as byte slices.
+	ScanRangeB(start, end []byte, callback ScanKeyValueB) error
+
+	// ScanRangeReverseB is like [ScanRangeB] but scans the given range [start,
+	// end) in reverse, i.e. descending key order.
+	ScanRangeReverseB(start, end []byte, callback ScanKeyValueB) error
+
+	// KeyUpperBound returns the next key by incrementing the given key bytes.
+	// Returns []byte(nil) if given key byte slice is empty or if all bytes in
+	// the given key have a value of 255.
+	//
+	// This function is useful if you have an inclusive upper bound for scanning
+	// or deleting a range of keys requiring an exclusive upper bound.
+	KeyUpperBound(key []byte) []byte
 }

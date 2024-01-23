@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: © 2023 Siemens AG
 // SPDX-License-Identifier: MIT
 
-// Package pebble provides a storage binding implementation for the [Pebble]
+// Package pebble provides a storage binding implementation using the [Pebble]
 // storage engine.
 //
 // [Pebble]: https://github.com/cockroachdb/pebble
@@ -34,13 +34,16 @@ func (l *errorOnlyLogger) Fatalf(format string, args ...any) {
 	plog.Printf(format, args...)
 }
 
-// PebbleBinding realizes a storage binding for the Pebble key-value store by
-// implementing the storage API interface.
+// PebbleBinding realizes a storage binding for the [Pebble] key-value store by
+// implementing the storage API interface [api.Api].
+//
+// [Pebble]: https://github.com/cockroachdb/pebble
 type PebbleBinding struct {
 	mu sync.RWMutex // protects following fields
 	db *pebble.DB
 }
 
+// Open implements the [api.Api] interface.
 func (b *PebbleBinding) Open(cfg *config.Config) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -67,6 +70,7 @@ func (b *PebbleBinding) Open(cfg *config.Config) error {
 	return nil
 }
 
+// Close implements the [api.Api] interface.
 func (b *PebbleBinding) Close() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -84,15 +88,21 @@ func (b *PebbleBinding) Close() {
 	plog.Printf("Closed Pebble storage binding\n")
 }
 
+// Get implements the [api.Api] interface.
 func (b *PebbleBinding) Get(key string) ([]byte, error) {
+	return b.GetB([]byte(key))
+}
+
+// GetB implements the [api.Api] interface.
+func (b *PebbleBinding) GetB(key []byte) ([]byte, error) {
 	b.mu.RLock() // it is safe to call Pebble Get and NewIter from concurrent goroutines
 	defer b.mu.RUnlock()
 
 	if b.db == nil {
-		return nil, fmt.Errorf("Get %s failed as binding is not yet open", key)
+		return nil, fmt.Errorf("GetB %v failed as binding is not yet open", key)
 	}
 
-	v, closer, err := b.db.Get([]byte(key))
+	v, closer, err := b.db.Get(key)
 	if err == pebble.ErrNotFound {
 		return nil, nil
 	}
@@ -105,36 +115,49 @@ func (b *PebbleBinding) Get(key string) ([]byte, error) {
 	return val, nil
 }
 
+// Set implements the [api.Api] interface.
 func (b *PebbleBinding) Set(key string, value []byte) error {
+	return b.SetB([]byte(key), value)
+}
+
+// SetB implements the [api.Api] interface.
+func (b *PebbleBinding) SetB(key []byte, value []byte) error {
 	if value == nil {
-		return fmt.Errorf("Set %s failed as value must not be nil", key)
+		return fmt.Errorf("SetB %v failed as value must not be nil", key)
 	}
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.db == nil {
-		return fmt.Errorf("Set %s failed as binding is not yet open", key)
+		return fmt.Errorf("SetB %v failed as binding is not yet open", key)
 	}
-	if err := b.db.Set([]byte(key), value, pebble.Sync); err != nil {
+	if err := b.db.Set(key, value, pebble.Sync); err != nil {
 		return services.NewRetryableError(err)
 	}
 	return nil
 }
 
+// Delete implements the [api.Api] interface.
 func (b *PebbleBinding) Delete(key string) error {
+	return b.DeleteB([]byte(key))
+}
+
+// DeleteB implements the [api.Api] interface.
+func (b *PebbleBinding) DeleteB(key []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.db == nil {
-		return fmt.Errorf("Delete %s failed as binding is not yet open", key)
+		return fmt.Errorf("DeleteB %v failed as binding is not yet open", key)
 	}
-	if err := b.db.Delete([]byte(key), pebble.Sync); err != nil {
+	if err := b.db.Delete(key, pebble.Sync); err != nil {
 		return services.NewRetryableError(err)
 	}
 	return nil
 }
 
+// DeleteAll implements the [api.Api] interface.
 func (b *PebbleBinding) DeleteAll() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -143,101 +166,148 @@ func (b *PebbleBinding) DeleteAll() error {
 		return fmt.Errorf("DeleteAll failed as binding is not yet open")
 	}
 
-	iter, err := b.db.NewIter(nil)
-	if err != nil {
-		return services.NewRetryableError(err)
-	}
+	iter := b.db.NewIter(nil)
 	defer b.db.Flush() // NoSync+Flush is one order of magnitude faster than Sync after every Delete
 	for iter.First(); iter.Valid(); iter.Next() {
 		err := b.db.Delete(iter.Key(), pebble.NoSync)
 		if err != nil { // fail fast
-			return services.NewRetryableError(fmt.Errorf("DeleteAll failed on key %s: %w: %w", iter.Key(), err, iter.Close()))
+			return services.NewRetryableError(fmt.Errorf("DeleteAll failed on key %v: %w: %w", iter.Key(), err, iter.Close()))
 		}
 	}
 	return iter.Close()
 }
 
+// DeletePrefix implements the [api.Api] interface.
 func (b *PebbleBinding) DeletePrefix(prefix string) error {
+	return b.DeletePrefixB([]byte(prefix))
+}
+
+// DeletePrefixB implements the [api.Api] interface.
+func (b *PebbleBinding) DeletePrefixB(prefix []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.db == nil {
-		return fmt.Errorf("DeletePrefix %s failed as binding is not yet open", prefix)
+		return fmt.Errorf("DeletePrefixB %v failed as binding is not yet open", prefix)
 	}
-	p := []byte(prefix)
-	if err := b.db.DeleteRange(p, b.keyUpperBound(p), pebble.Sync); err != nil {
+	if err := b.db.DeleteRange(prefix, b.KeyUpperBound(prefix), pebble.Sync); err != nil {
 		return services.NewRetryableError(err)
 	}
 	return nil
 }
 
+// DeleteRange implements the [api.Api] interface.
 func (b *PebbleBinding) DeleteRange(start, end string) error {
+	return b.DeleteRangeB([]byte(start), []byte(end))
+}
+
+// DeleteRangeB implements the [api.Api] interface.
+func (b *PebbleBinding) DeleteRangeB(start, end []byte) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.db == nil {
-		return fmt.Errorf("DeleteRange [%s,%s) failed as binding is not yet open", start, end)
+		return fmt.Errorf("DeleteRangeB [%v,%v) failed as binding is not yet open", start, end)
 	}
-	if err := b.db.DeleteRange([]byte(start), []byte(end), pebble.Sync); err != nil {
+	if err := b.db.DeleteRange(start, end, pebble.Sync); err != nil {
 		return services.NewRetryableError(err)
 	}
 	return nil
 }
 
+// ScanPrefix implements the [api.Api] interface.
 func (b *PebbleBinding) ScanPrefix(prefix string, callback api.ScanKeyValue) error {
+	return b.ScanPrefixB([]byte(prefix), func(key []byte, value []byte) bool {
+		return callback(string(key), value)
+	})
+}
+
+// ScanPrefixB implements the [api.Api] interface.
+func (b *PebbleBinding) ScanPrefixB(prefix []byte, callback api.ScanKeyValueB) error {
 	b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
 	defer b.mu.RUnlock()
 
 	if b.db == nil {
-		return fmt.Errorf("ScanPrefix %s failed as binding is not yet open", prefix)
+		return fmt.Errorf("ScanPrefixB %v failed as binding is not yet open", prefix)
 	}
 
-	pre := []byte(prefix)
-	iter, err := b.db.NewIter(&pebble.IterOptions{
-		LowerBound: pre,
-		UpperBound: b.keyUpperBound(pre), // excluding
+	iter := b.db.NewIter(&pebble.IterOptions{
+		LowerBound: prefix,
+		UpperBound: b.KeyUpperBound(prefix), // excluding
 	})
-	if err != nil {
-		return services.NewRetryableError(err)
-	}
 	for iter.First(); iter.Valid(); iter.Next() {
+		key := make([]byte, len(iter.Key()))
 		val := make([]byte, len(iter.Value()))
+		copy(key, iter.Key())
 		copy(val, iter.Value())
-		if !callback(string(iter.Key()), val) {
+		if !callback(key, val) {
 			break
 		}
 	}
 	return iter.Close()
 }
 
+// ScanRange implements the [api.Api] interface.
 func (b *PebbleBinding) ScanRange(start, end string, callback api.ScanKeyValue) error {
+	return b.ScanRangeB([]byte(start), []byte(end), func(key []byte, value []byte) bool {
+		return callback(string(key), value)
+	})
+}
+
+// ScanRangeB implements the [api.Api] interface.
+func (b *PebbleBinding) ScanRangeB(start, end []byte, callback api.ScanKeyValueB) error {
 	b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
 	defer b.mu.RUnlock()
 
 	if b.db == nil {
-		return fmt.Errorf("ScanRange [%s,%s) failed as binding is not yet open", start, end)
+		return fmt.Errorf("ScanRangeB [%v,%v) failed as binding is not yet open", start, end)
 	}
 
-	iter, err := b.db.NewIter(&pebble.IterOptions{
-		LowerBound: []byte(start),
-		UpperBound: []byte(end),
+	iter := b.db.NewIter(&pebble.IterOptions{
+		LowerBound: start,
+		UpperBound: end,
 	})
-	if err != nil {
-		return services.NewRetryableError(err)
-	}
 	for iter.First(); iter.Valid(); iter.Next() {
+		key := make([]byte, len(iter.Key()))
 		val := make([]byte, len(iter.Value()))
+		copy(key, iter.Key())
 		copy(val, iter.Value())
-		if !callback(string(iter.Key()), val) {
+		if !callback(key, val) {
 			break
 		}
 	}
 	return iter.Close()
 }
 
-func (b *PebbleBinding) keyUpperBound(prefix []byte) []byte {
-	end := make([]byte, len(prefix))
-	copy(end, prefix)
+// ScanRangeReverseB implements the [api.Api] interface.
+func (b *PebbleBinding) ScanRangeReverseB(start, end []byte, callback api.ScanKeyValueB) error {
+	b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
+	defer b.mu.RUnlock()
+
+	if b.db == nil {
+		return fmt.Errorf("ScanRangeReverseB [%v,%v) failed as binding is not yet open", start, end)
+	}
+
+	iter := b.db.NewIter(&pebble.IterOptions{
+		LowerBound: start,
+		UpperBound: end,
+	})
+	for iter.Last(); iter.Valid(); iter.Prev() {
+		key := make([]byte, len(iter.Key()))
+		val := make([]byte, len(iter.Value()))
+		copy(key, iter.Key())
+		copy(val, iter.Value())
+		if !callback(key, val) {
+			break
+		}
+	}
+	return iter.Close()
+}
+
+// KeyUpperBound implements the [api.Api] interface.
+func (b *PebbleBinding) KeyUpperBound(key []byte) []byte {
+	end := make([]byte, len(key))
+	copy(end, key)
 	for i := len(end) - 1; i >= 0; i-- {
 		end[i] = end[i] + 1
 		if end[i] != 0 {

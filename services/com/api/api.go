@@ -33,7 +33,7 @@ type Scope string
 const (
 	ScopeDef         Scope = ""    // Default scope (ScopeCom)
 	ScopeCom         Scope = "com" // Communication scope
-	ScopeState       Scope = "sta" // Distributed state management scope
+	ScopeState       Scope = "sta" // Distributed state synchronization scope
 	ScopeSideChannel Scope = "sdc" // Side channel scope
 )
 
@@ -67,7 +67,7 @@ func ToScope(scope string) (Scope, error) {
 type Api interface {
 
 	// Open asynchronously connects to the communication network of the
-	// underlying protocol binding with the supplied configuration.
+	// underlying protocol binding with the supplied DDA configuration.
 	//
 	// Upon successful connection or if the binding has been opened already, the
 	// returned error channel yields nil and is closed. If connection fails

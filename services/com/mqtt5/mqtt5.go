@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: © 2023 Siemens AG
 // SPDX-License-Identifier: MIT
 
-// Package mqtt5 provides a communication protocol binding implementation for
-// MQTT v5 transport protocol.
+// Package mqtt5 provides a communication protocol binding implementation using
+// the [MQTT v5] pub-sub messaging protocol.
+//
+// [MQTT v5]: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
 package mqtt5
 
 import (
@@ -52,8 +54,10 @@ var strictClientIdRegex = regexp.MustCompile("[^0-9a-zA-Z]")
 
 type mqttRouteFilter = api.RouteFilter[string]
 
-// Mqtt5Binding realizes a communication protocol binding for MQTT v5 by
-// implementing the communication API interface.
+// Mqtt5Binding realizes a communication protocol binding for [MQTT v5] by
+// implementing the communication API interface [api.Api].
+//
+// [MQTT v5]: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
 type Mqtt5Binding struct {
 	mu                 sync.RWMutex // protects following fields
 	eventRouter        *api.Router[api.Event, string]
@@ -76,6 +80,7 @@ func (b *Mqtt5Binding) ClientId() string {
 	return b.clientId
 }
 
+// Open implements the [api.Api] interface.
 func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) <-chan error {
 	ch := make(chan error, 1)
 	defer close(ch)
@@ -125,7 +130,7 @@ func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) <-chan er
 	// case AwaitConnection will block until the passed timeout elapses.
 	ctx := context.Background()
 	var cancel context.CancelFunc
-	if timeout != 0 {
+	if timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
@@ -141,6 +146,7 @@ func (b *Mqtt5Binding) Open(cfg *config.Config, timeout time.Duration) <-chan er
 	return ch
 }
 
+// Close implements the [api.Api] interface.
 func (b *Mqtt5Binding) Close() (done <-chan struct{}) {
 	ch := make(chan struct{})
 	defer close(ch)
@@ -163,6 +169,7 @@ func (b *Mqtt5Binding) Close() (done <-chan struct{}) {
 	return ch
 }
 
+// PublishEvent implements the [api.Api] interface.
 func (b *Mqtt5Binding) PublishEvent(event api.Event, scope ...api.Scope) error {
 	if err := b.validatePatternTypeIdSource("Event", event.Type, event.Id, event.Source); err != nil {
 		return err
@@ -189,6 +196,7 @@ func (b *Mqtt5Binding) PublishEvent(event api.Event, scope ...api.Scope) error {
 	}, "", nil)
 }
 
+// SubscribeEvent implements the [api.Api] interface.
 func (b *Mqtt5Binding) SubscribeEvent(ctx context.Context, filter api.SubscriptionFilter) (events <-chan api.Event, err error) {
 	if err := b.validatePatternFilter("Event", filter); err != nil {
 		return nil, err
@@ -214,6 +222,7 @@ func (b *Mqtt5Binding) SubscribeEvent(ctx context.Context, filter api.Subscripti
 	return rc.ReceiveChan, nil
 }
 
+// PublishAction implements the [api.Api] interface.
 func (b *Mqtt5Binding) PublishAction(ctx context.Context, action api.Action, scope ...api.Scope) (results <-chan api.ActionResult, err error) {
 	if err := b.validatePatternTypeIdSource("Action", action.Type, action.Id, action.Source); err != nil {
 		return nil, err
@@ -267,6 +276,7 @@ func (b *Mqtt5Binding) publishActionResult(result api.ActionResult, responseTopi
 	}, "", []byte(correlationId))
 }
 
+// SubscribeAction implements the [api.Api] interface.
 func (b *Mqtt5Binding) SubscribeAction(ctx context.Context, filter api.SubscriptionFilter) (actions <-chan api.ActionWithCallback, err error) {
 	if err := b.validatePatternFilter("Action", filter); err != nil {
 		return nil, err
@@ -292,6 +302,7 @@ func (b *Mqtt5Binding) SubscribeAction(ctx context.Context, filter api.Subscript
 	return rc.ReceiveChan, nil
 }
 
+// PublishQuery implements the [api.Api] interface.
 func (b *Mqtt5Binding) PublishQuery(ctx context.Context, query api.Query, scope ...api.Scope) (results <-chan api.QueryResult, err error) {
 	if err := b.validatePatternTypeIdSource("Query", query.Type, query.Id, query.Source); err != nil {
 		return nil, err
@@ -345,6 +356,7 @@ func (b *Mqtt5Binding) publishQueryResult(result api.QueryResult, responseTopic 
 	}, "", []byte(correlationId))
 }
 
+// SubscribeQuery implements the [api.Api] interface.
 func (b *Mqtt5Binding) SubscribeQuery(ctx context.Context, filter api.SubscriptionFilter) (queries <-chan api.QueryWithCallback, err error) {
 	if err := b.validatePatternFilter("Query", filter); err != nil {
 		return nil, err

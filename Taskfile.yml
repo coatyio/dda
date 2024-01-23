@@ -9,7 +9,7 @@ output: interleaved
 silent: true
 
 vars:
-  GO_TEST_FLAGS: -tags=testing -v -count=1 -timeout=1m
+  GO_TEST_FLAGS: -tags=testing -v -count=1 -timeout=10m
 
 tasks:
   default:
@@ -70,7 +70,6 @@ tasks:
     desc: Run all testing packages with logging disabled
     cmds:
       - go test {{.GO_TEST_FLAGS}} ./apis/grpc/ ./services/... ./config/... ./dda/test/...
-
   test-log:
     desc: Run all testing packages with logging enabled
     env:

@@ -18,7 +18,7 @@ through a gRPC or gRPC-Web client.
 ## Reference Documentation
 
 To integrate DDA as a library or to implement your own bindings for
-communication protocols, storage, or consensus algorithms you can look up the
+communication protocols, storage, or state synchronization you can look up the
 documentation of the DDA Golang module and its packages
 [here](https://pkg.go.dev/github.com/coatyio/dda).
 

@@ -3,8 +3,8 @@
 // SPDX-FileCopyrightText: © 2023 Siemens AG
 // SPDX-License-Identifier: MIT
 
-// Package store_test provides entry points for tests and benchmarks of the gRPC
-// Client store API without authentication.
+// Package noauth_test provides entry points for tests and benchmarks of the
+// gRPC Client store API without authentication.
 package noauth_test
 
 import (

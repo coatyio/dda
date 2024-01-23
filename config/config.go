@@ -114,7 +114,7 @@ type ConfigWebApi struct {
 type ConfigServices struct {
 	Com   ConfigComService
 	Store ConfigStoreService
-	// TODO State ConfigStateService
+	State ConfigStateService
 }
 
 // ConfigComService defines configuration options for a selected pub-sub
@@ -144,6 +144,16 @@ type ConfigStoreService struct {
 	Engine   string
 	Location string
 	Disabled bool
+}
+
+// ConfigStateService provides configuration options for a selected consensus
+// protocol.
+type ConfigStateService struct {
+	Protocol  string
+	Store     string
+	Bootstrap bool
+	Disabled  bool
+	Opts      map[string]any
 }
 
 // ReadConfig reads and parses the given DDA configuration file in YAML format
@@ -206,6 +216,13 @@ func New() *Config {
 				Engine:   "pebble",
 				Location: "",
 				Disabled: true,
+			},
+			State: ConfigStateService{
+				Protocol:  "raft",
+				Store:     "",
+				Bootstrap: false,
+				Disabled:  true,
+				Opts:      make(map[string]any),
 			},
 		},
 	}
