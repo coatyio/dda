@@ -54,11 +54,12 @@ broker, such as [emqx](https://www.emqx.io/) or
 ## Encoding Application Data
 
 Principally, application data transmitted to/received from a peripheral service
-must be encoded/decoded in a binary serialization format by the application.
-Typical examples include UTF-8 encoded byte arrays for textual representations,
-such as plain strings or [JSON](https://www.json.org), and binary
-representations, such as [Protobuf](https://protobuf.dev/) and
-[MsgPack](https://msgpack.org/), for structured data.
+is an opaque binary blob to DDA and must be encoded/decoded in a binary
+serialization format by the application. Typical examples include UTF-8 encoded
+byte arrays for textual representations, such as plain strings or
+[JSON](https://www.json.org), and binary representations, such as
+[Protobuf](https://protobuf.dev/) and [MsgPack](https://msgpack.org/), for
+structured data.
 
 An application may choose to use a uniform binary encoding for all services or
 use specific ones for specific services. You may also use _different_ encodings
@@ -217,7 +218,7 @@ following:
   side in case responses arrive too late (see also
   [here](https://grpc.io/blog/deadlines/)).
 
-> __Note__: The grpc-web protocol is not really scalable if your browser uses
+> __NOTE__: The grpc-web protocol is not really scalable if your browser uses
 > HTTP/1.1 connections because each unary or server streaming call is invoked on
 > a separate connection. If you have multiple long-lived gRPC-Web requests with
 > unlimited responses over time, you might run into an issue with browser's
@@ -230,7 +231,7 @@ following:
 > the same connection. The DDA gRPC-Web sidecar service supports both HTTP/1.1
 > and HTTP/2 connections established by browser clients.
 >
-> __Note__: Header metadata with dda-suback acknowledgment is not emitted until
+> __NOTE__: Header metadata with dda-suback acknowledgment is not emitted until
 > the server stream is closed. You cannot receive metadata as header data before
 > any response data although the HTTP response header contains it. This is an
 > issue with the official [grpc-web client
