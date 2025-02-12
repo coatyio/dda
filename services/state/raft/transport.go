@@ -391,9 +391,9 @@ func sendRPC[T any](ctx context.Context, t *RaftTransport, pubType string, rpcOp
 			return nil
 		} else {
 			if res.Retryable {
-				return services.RetryableErrorf(res.Error)
+				return services.RetryableErrorf("%s", res.Error)
 			} else {
-				return fmt.Errorf(res.Error)
+				return fmt.Errorf("%s", res.Error)
 			}
 		}
 	}
@@ -481,16 +481,24 @@ func (t *RaftTransport) subscribeRpcs() {
 				if !ok {
 					return // stop fast on closing transport
 				}
-				if err := t.handleRpc(ac); err != nil {
-					plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
-				}
+				// Rpcs need to be handled concurrently, otherwise HOL occurs
+				// and cluster degenerates very quickly
+				go func() {
+					if err := t.handleRpc(ac); err != nil {
+						plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
+					}
+				}()
 			case ac, ok := <-acsLfw:
 				if !ok {
 					return // stop fast on closing transport
 				}
-				if err := t.handleRpc(ac); err != nil {
-					plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
-				}
+				// Rpcs need to be handled concurrently, otherwise HOL occurs
+				// and cluster degenerates very quickly
+				go func() {
+					if err := t.handleRpc(ac); err != nil {
+						plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
+					}
+				}()
 			}
 		}
 	}()
@@ -507,8 +515,8 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error {
 		return nil
 	}
 
-	t.shutdownMu.Lock()
-	defer t.shutdownMu.Unlock()
+	t.shutdownMu.RLock()
+	defer t.shutdownMu.RUnlock()
 
 	if t.shutdown {
 		// Stop handling action immediately when shutdown is ongoing.

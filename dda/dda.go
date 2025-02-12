@@ -141,6 +141,8 @@ func (d *Dda) Close() {
 		d.grpcServer.Close()
 	}
 
+	// state must be closed first, as it uses com to deregister from the rest of
+	// the cluster
 	if d.stateApi != nil {
 		d.stateApi.Close()
 	}

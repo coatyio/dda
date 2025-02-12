@@ -118,7 +118,7 @@ func (b *RaftBinding) Open(cfg *config.Config, com comapi.Api) error {
 	// followers (see https://github.com/hashicorp/raft/issues/282).
 	config.CommitTimeout = config.HeartbeatTimeout / 10
 
-	config.LogLevel = "OFF"	// too many "ERROR" messages are just informational in hashicorp-raft
+	config.LogLevel = "OFF" // too many "ERROR" messages are just informational in hashicorp-raft
 	if plog.Enabled() {
 		config.LogLevel = "ERROR"
 		if cfg.Services.State.Opts["debug"] == true {

@@ -44,12 +44,15 @@ func (f *RaftFsm) State() api.State {
 // manner to prevent blocking send operations.
 func (f *RaftFsm) AddStateChangeObserver(ch chan api.Input) uint64 {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.nextObserverId++
 	f.observers[f.nextObserverId] = ch
+	f.mu.Unlock()
 
 	// Emit synthetic inputs reproducing the current key-value pairs.
 	go func() {
+		// we need to protect all accesses to shared maps
+		f.mu.Lock()
+		defer f.mu.Unlock()
 		for k, v := range f.state {
 			ch <- f.cloneInput(&api.Input{Op: api.InputOpSet, Key: k, Value: v})
 		}
@@ -161,6 +164,7 @@ func (f *RaftFsm) cloneInput(in *api.Input) api.Input {
 
 func (f *RaftFsm) cloneState() api.State {
 	s := make(api.State, len(f.state))
+	// no need for locking, as the lock is held by all callers of this function
 	for k, v := range f.state {
 		cv := make([]byte, len(v))
 		copy(cv, v)
