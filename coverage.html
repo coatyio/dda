@@ -71,19 +71,19 @@
 				
 				<option value="file7">github.com/coatyio/dda/services/com/com.go (100.0%)</option>
 				
-				<option value="file8">github.com/coatyio/dda/services/com/mqtt5/mqtt5.go (90.3%)</option>
+				<option value="file8">github.com/coatyio/dda/services/com/mqtt5/mqtt5.go (89.8%)</option>
 				
 				<option value="file9">github.com/coatyio/dda/services/services.go (96.7%)</option>
 				
 				<option value="file10">github.com/coatyio/dda/services/state/raft/codec.go (100.0%)</option>
 				
-				<option value="file11">github.com/coatyio/dda/services/state/raft/fsm.go (90.8%)</option>
+				<option value="file11">github.com/coatyio/dda/services/state/raft/fsm.go (91.0%)</option>
 				
-				<option value="file12">github.com/coatyio/dda/services/state/raft/raft.go (80.0%)</option>
+				<option value="file12">github.com/coatyio/dda/services/state/raft/raft.go (80.2%)</option>
 				
 				<option value="file13">github.com/coatyio/dda/services/state/raft/store.go (84.4%)</option>
 				
-				<option value="file14">github.com/coatyio/dda/services/state/raft/transport.go (69.8%)</option>
+				<option value="file14">github.com/coatyio/dda/services/state/raft/transport.go (70.1%)</option>
 				
 				<option value="file15">github.com/coatyio/dda/services/state/state.go (100.0%)</option>
 				
@@ -806,6 +806,7 @@ func (s *grpcServer) ObserveStateChange(p *state.ObserveStateChangeParams, strea
                                 // End stream if channel has been closed.
                                 return nil
                         }</span>
+                        // #nosec G115
                         <span class="cov4" title="4">if err := stream.Send(&amp;state.Input{Op: state.InputOperation(in.Op), Key: in.Key, Value: in.Value}); err != nil </span><span class="cov0" title="0">{
                                 // Do not return err, but keep stream alive for further transmissions.
                                 plog.Println(err)
@@ -1015,21 +1016,21 @@ var compliesWithNamingConvention = regexp.MustCompile("^[-_.0-9a-zA-Z]+$").Match
 //
 // This function is intended to be used by communication binding
 // implementations.
-func ValidateName(name string, context ...string) error <span class="cov9" title="1003">{
+func ValidateName(name string, context ...string) error <span class="cov9" title="984">{
         if !compliesWithNamingConvention(name) </span><span class="cov7" title="137">{
                 return fmt.Errorf(`invalid %s "%s": must only contain characters 0-9, a-z, A-Z, dot, hyphen, or underscore`, strings.Join(context, " "), name)
         }</span>
-        <span class="cov9" title="865">return nil</span>
+        <span class="cov9" title="847">return nil</span>
 }
 
 // Asserts that the given value is a non-empty string. Returns an error if
 // assertion fails; nil otherwise. The given context strings are embedded into
 // the error.
-func ValidateNonEmpty(value string, context ...string) error <span class="cov10" title="1231">{
+func ValidateNonEmpty(value string, context ...string) error <span class="cov10" title="1193">{
         if value == "" </span><span class="cov5" title="43">{
                 return fmt.Errorf(`invalid %s "%s": must not be empty`, strings.Join(context, " "), value)
         }</span>
-        <span class="cov9" title="1188">return nil</span>
+        <span class="cov9" title="1150">return nil</span>
 }
 
 // A Config represents the complete hierarchy of configuration parameters for
@@ -1352,6 +1353,8 @@ func (d *Dda) Close() <span class="cov7" title="53">{
                 d.grpcServer.Close()
         }</span>
 
+        // state must be closed first, as it uses com to deregister from the rest of
+        // the cluster
         <span class="cov7" title="53">if d.stateApi != nil </span><span class="cov4" title="6">{
                 d.stateApi.Close()
         }</span>
@@ -1427,13 +1430,13 @@ const (
 )
 
 // ToScope converts a Scope string to a Scope.
-func ToScope(scope string) (Scope, error) <span class="cov10" title="1270">{
+func ToScope(scope string) (Scope, error) <span class="cov10" title="1235">{
         switch scope </span>{
         case string(ScopeDef):<span class="cov1" title="1">
                 return ScopeCom, nil</span>
         case string(ScopeCom):<span class="cov7" title="126">
                 return ScopeCom, nil</span>
-        case string(ScopeState):<span class="cov9" title="1137">
+        case string(ScopeState):<span class="cov9" title="1105">
                 return ScopeState, nil</span>
         case string(ScopeSideChannel):<span class="cov1" title="1">
                 return ScopeSideChannel, nil</span>
@@ -2008,7 +2011,7 @@ func (r *Router[R, T]) GetTopics() []T <span class="cov5" title="33">{
 // Note that the publish function should only be used in combination with
 // registering response filters. Request filters should always specify a no-op
 // publish function.
-func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe ComBindingFunc[T], publish ComBindingFunc[T], unsubscribe ComBindingFunc[T], bufferSize ...int) (*RouteChannel[R, T], error) <span class="cov9" title="621">{
+func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe ComBindingFunc[T], publish ComBindingFunc[T], unsubscribe ComBindingFunc[T], bufferSize ...int) (*RouteChannel[R, T], error) <span class="cov9" title="602">{
         r.mu.Lock()
         defer r.mu.Unlock()
 
@@ -2016,33 +2019,33 @@ func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe
         if len(bufferSize) &gt; 0 </span><span class="cov1" title="1">{
                 size = bufferSize[0]
         }</span>
-        <span class="cov9" title="620">recvChan := make(chan R, size)
+        <span class="cov9" title="602">recvChan := make(chan R, size)
         rc := &amp;RouteChannel[R, T]{ReceiveChan: recvChan, correlationId: filter.CorrelationId}
         rc.unsub = unsubscribe
         rc.CtxDone = ctx.Done()
 
-        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov6" title="86">{ // subscription already set up
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov6" title="65">{ // subscription already set up
                 if err := publish(); err != nil </span><span class="cov1" title="1">{
                         return nil, err
                 }</span>
-                <span class="cov6" title="85">r.routes[filter.Topic] = append(rcs, rc)
-                context.AfterFunc(ctx, func() </span><span class="cov6" title="85">{
+                <span class="cov6" title="64">r.routes[filter.Topic] = append(rcs, rc)
+                context.AfterFunc(ctx, func() </span><span class="cov6" title="64">{
                         r.remove(filter, rc)
                 }</span>)
-                <span class="cov6" title="85">return rc, nil</span>
-        } else<span class="cov8" title="535"> { // subscription not yet set up
+                <span class="cov6" title="64">return rc, nil</span>
+        } else<span class="cov8" title="537"> { // subscription not yet set up
                 if err := subscribe(); err != nil </span><span class="cov1" title="1">{
                         return nil, err
                 }</span>
-                <span class="cov8" title="534">if err := publish(); err != nil </span><span class="cov1" title="1">{
+                <span class="cov8" title="536">if err := publish(); err != nil </span><span class="cov1" title="1">{
                         _ = unsubscribe() // try unsubscribe as subscription is unused
                         return nil, err
                 }</span>
-                <span class="cov8" title="533">r.routes[filter.Topic] = []*RouteChannel[R, T]{rc}
-                context.AfterFunc(ctx, func() </span><span class="cov8" title="533">{
+                <span class="cov8" title="535">r.routes[filter.Topic] = []*RouteChannel[R, T]{rc}
+                context.AfterFunc(ctx, func() </span><span class="cov8" title="535">{
                         r.remove(filter, rc)
                 }</span>)
-                <span class="cov8" title="533">return rc, nil</span>
+                <span class="cov8" title="535">return rc, nil</span>
         }
 }
 
@@ -2051,7 +2054,7 @@ func (r *Router[R, T]) Add(ctx context.Context, filter RouteFilter[T], subscribe
 //
 // To be used with communication bindings that provide callback functions to
 // handle incoming messages.
-func (r *Router[R, T]) Dispatch(filter RouteFilter[T], message R) <span class="cov9" title="1268">{
+func (r *Router[R, T]) Dispatch(filter RouteFilter[T], message R) <span class="cov9" title="1233">{
         r.dispatch(filter, message)
 }</span>
 
@@ -2066,40 +2069,40 @@ func (r *Router[R, T]) DispatchChan(filter RouteFilter[T], messages &lt;-chan R)
         }</span>
 }
 
-func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="cov10" title="1269">{
+func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="cov10" title="1234">{
         r.mu.RLock()
         defer r.mu.RUnlock()
 
-        dispatch := func(rc *RouteChannel[R, T], msg R) </span><span class="cov9" title="1263">{
+        dispatch := func(rc *RouteChannel[R, T], msg R) </span><span class="cov9" title="1229">{
                 // Make sure no more messages are dispatched when associated context has
                 // been canceled/timed out but route channel has not yet been removed by
                 // context's AfterFunc.
                 select </span>{
                 case &lt;-rc.CtxDone:<span class="cov1" title="1">
                         return</span>
-                default:<span class="cov9" title="1263"></span>
+                default:<span class="cov9" title="1227"></span>
                 }
-                <span class="cov9" title="1263">select </span>{
+                <span class="cov9" title="1227">select </span>{
                 case &lt;-rc.CtxDone:<span class="cov0" title="0">
                         return</span>
-                case rc.ReceiveChan &lt;- message:<span class="cov9" title="1261"></span>
+                case rc.ReceiveChan &lt;- message:<span class="cov9" title="1230"></span>
                 }
         }
-        <span class="cov9" title="1266">zerocid := *new(T)
+        <span class="cov9" title="1231">zerocid := *new(T)
         cid := filter.CorrelationId
 
-        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov9" title="1261">{
-                if cid == zerocid </span><span class="cov9" title="690">{
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov9" title="1226">{
+                if cid == zerocid </span><span class="cov9" title="672">{
                         // Dispatch incoming request to all non-response route channels.
-                        for _, rc := range rcs </span><span class="cov9" title="693">{
-                                if rc.correlationId == zerocid </span><span class="cov9" title="692">{
+                        for _, rc := range rcs </span><span class="cov9" title="678">{
+                                if rc.correlationId == zerocid </span><span class="cov9" title="673">{
                                         dispatch(rc, message)
                                 }</span>
                         }
-                } else<span class="cov8" title="571"> {
+                } else<span class="cov8" title="554"> {
                         // Dispatch incoming response to correlated route channel only.
-                        for _, rc := range rcs </span><span class="cov9" title="585">{
-                                if cid == rc.correlationId </span><span class="cov8" title="571">{
+                        for _, rc := range rcs </span><span class="cov9" title="569">{
+                                if cid == rc.correlationId </span><span class="cov8" title="554">{
                                         dispatch(rc, message)
                                 }</span>
                         }
@@ -2107,35 +2110,35 @@ func (r *Router[R, T]) dispatch(filter RouteFilter[T], message R) <span class="c
         }
 }
 
-func (r *Router[R, T]) remove(filter RouteFilter[T], routeChannel *RouteChannel[R, T]) <span class="cov9" title="618">{
+func (r *Router[R, T]) remove(filter RouteFilter[T], routeChannel *RouteChannel[R, T]) <span class="cov9" title="599">{
         r.mu.Lock()
         defer r.mu.Unlock()
 
-        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov9" title="618">{
+        if rcs, ok := r.routes[filter.Topic]; ok </span><span class="cov9" title="599">{
                 found := false
                 l := len(rcs)
-                for i := 0; i &lt; l; i++ </span><span class="cov9" title="704">{
-                        if found </span><span class="cov6" title="81">{
+                for i := 0; i &lt; l; i++ </span><span class="cov9" title="664">{
+                        if found </span><span class="cov6" title="60">{
                                 rcs[i-1] = rcs[i]
-                        }</span> else<span class="cov9" title="623"> if rcs[i] == routeChannel </span><span class="cov9" title="618">{
+                        }</span> else<span class="cov9" title="604"> if rcs[i] == routeChannel </span><span class="cov9" title="599">{
                                 found = true
                         }</span>
                 }
-                <span class="cov9" title="618">if found </span><span class="cov9" title="618">{
+                <span class="cov9" title="599">if found </span><span class="cov9" title="599">{
                         defer close(routeChannel.ReceiveChan)
                         rcs[l-1] = nil
-                        if l == 1 </span><span class="cov8" title="533">{
-                                if err := routeChannel.unsub(); err != nil </span><span class="cov1" title="2">{
+                        if l == 1 </span><span class="cov8" title="535">{
+                                if err := routeChannel.unsub(); err != nil </span><span class="cov1" title="1">{
                                         // As binding subscription is kept, also keep topic without
                                         // route channel to prevent a subsequent resubscription from
                                         // failing.
                                         r.routes[filter.Topic] = rcs[:0]
                                         return
                                 }</span>
-                                <span class="cov8" title="528">delete(r.routes, filter.Topic)
+                                <span class="cov8" title="532">delete(r.routes, filter.Topic)
                                 return</span>
                         }
-                        <span class="cov6" title="85">r.routes[filter.Topic] = rcs[:l-1]
+                        <span class="cov6" title="64">r.routes[filter.Topic] = rcs[:l-1]
                         return</span>
                 }
         }
@@ -2401,45 +2404,45 @@ func (b *Mqtt5Binding) SubscribeEvent(ctx context.Context, filter api.Subscripti
 }
 
 // PublishAction implements the [api.Api] interface.
-func (b *Mqtt5Binding) PublishAction(ctx context.Context, action api.Action, scope ...api.Scope) (results &lt;-chan api.ActionResult, err error) <span class="cov8" title="570">{
+func (b *Mqtt5Binding) PublishAction(ctx context.Context, action api.Action, scope ...api.Scope) (results &lt;-chan api.ActionResult, err error) <span class="cov8" title="551">{
         if err := b.validatePatternTypeIdSource("Action", action.Type, action.Id, action.Source); err != nil </span><span class="cov4" title="28">{
                 return nil, err
         }</span>
 
-        <span class="cov8" title="542">scp := api.ScopeDef
-        if len(scope) &gt; 0 </span><span class="cov8" title="523">{
+        <span class="cov8" title="523">scp := api.ScopeDef
+        if len(scope) &gt; 0 </span><span class="cov8" title="504">{
                 scp = scope[0]
         }</span>
 
-        <span class="cov8" title="542">b.mu.RLock()
+        <span class="cov8" title="523">b.mu.RLock()
         defer b.mu.RUnlock()
 
         if b.conn == nil </span><span class="cov2" title="5">{
                 return nil, fmt.Errorf("PublishAction %+v failed as binding is not yet open", action)
         }</span>
 
-        <span class="cov8" title="537">pubTopic, _ := b.topicWithLevels("", scp, levelAction, action.Type)
+        <span class="cov8" title="518">pubTopic, _ := b.topicWithLevels("", scp, levelAction, action.Type)
         pubResTopic, _ := b.topicWithLevels("", scp, levelActionResult, action.Type)
         responseTopic, correlationId := b.responseInfo(pubResTopic)
         routeFilter := mqttRouteFilter{Topic: responseTopic, CorrelationId: correlationId}
         rc, err := b.actionResultRouter.Add(ctx, routeFilter,
-                func() error </span><span class="cov8" title="456">{ return b.subscribe(responseTopic) }</span>,
-                func() error <span class="cov8" title="537">{
+                func() error </span><span class="cov8" title="458">{ return b.subscribe(responseTopic) }</span>,
+                func() error <span class="cov8" title="518">{
                         return b.publish(pubTopic, action.Params, paho.UserProperties{
                                 {Key: userPropId, Value: action.Id},
                                 {Key: userPropSource, Value: action.Source},
                                 {Key: userPropDataContentType, Value: action.DataContentType},
                         }, responseTopic, []byte(correlationId))
                 }</span>,
-                func() error <span class="cov8" title="456">{ return b.unsubscribe(responseTopic) }</span>,
+                func() error <span class="cov8" title="458">{ return b.unsubscribe(responseTopic) }</span>,
         )
-        <span class="cov8" title="537">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="518">if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
-        <span class="cov8" title="537">return rc.ReceiveChan, nil</span>
+        <span class="cov8" title="518">return rc.ReceiveChan, nil</span>
 }
 
-func (b *Mqtt5Binding) publishActionResult(result api.ActionResult, responseTopic string, correlationId []byte) error <span class="cov8" title="564">{
+func (b *Mqtt5Binding) publishActionResult(result api.ActionResult, responseTopic string, correlationId []byte) error <span class="cov8" title="547">{
         b.mu.RLock()
         defer b.mu.RUnlock()
 
@@ -2447,7 +2450,7 @@ func (b *Mqtt5Binding) publishActionResult(result api.ActionResult, responseTopi
                 return fmt.Errorf("publishActionResult %+v failed as binding is not yet open", result)
         }</span>
 
-        <span class="cov8" title="559">return b.publish(responseTopic, result.Data, paho.UserProperties{
+        <span class="cov8" title="542">return b.publish(responseTopic, result.Data, paho.UserProperties{
                 {Key: userPropContext, Value: result.Context},
                 {Key: userPropDataContentType, Value: result.DataContentType},
                 {Key: userPropSequenceNumber, Value: strconv.FormatInt(result.SequenceNumber, 10)},
@@ -2460,7 +2463,7 @@ func (b *Mqtt5Binding) SubscribeAction(ctx context.Context, filter api.Subscript
                 return nil, err
         }</span>
 
-        <span class="cov5" title="38">b.mu.RLock()
+        <span class="cov5" title="39">b.mu.RLock()
         defer b.mu.RUnlock()
 
         if b.conn == nil </span><span class="cov2" title="5">{
@@ -2540,7 +2543,7 @@ func (b *Mqtt5Binding) SubscribeQuery(ctx context.Context, filter api.Subscripti
                 return nil, err
         }</span>
 
-        <span class="cov4" title="19">b.mu.RLock()
+        <span class="cov4" title="18">b.mu.RLock()
         defer b.mu.RUnlock()
 
         if b.conn == nil </span><span class="cov2" title="5">{
@@ -2643,7 +2646,12 @@ func (b *Mqtt5Binding) getClientConfig(cfg *config.Config, connackChan chan&lt;-
 
         <span class="cov5" title="39">switch v := comCfg.Opts["keepAlive"].(type) </span>{
         case int:<span class="cov0" title="0">
-                clientConfig.KeepAlive = uint16(v)</span>
+                if v &lt; 0 </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("keepAlive must be a positive integer")
+                }</span> else<span class="cov0" title="0"> {
+                        // #nosec G115
+                        clientConfig.KeepAlive = uint16(v)
+                }</span>
         default:<span class="cov5" title="39">
                 clientConfig.KeepAlive = 30</span>
         }
@@ -2692,24 +2700,24 @@ func (b *Mqtt5Binding) getClientId(cfg *config.Config) string <span class="cov5"
         <span class="cov5" title="54">return clientId</span>
 }
 
-func (b *Mqtt5Binding) validatePatternTypeIdSource(pat string, typ string, id string, source string) error <span class="cov8" title="667">{
+func (b *Mqtt5Binding) validatePatternTypeIdSource(pat string, typ string, id string, source string) error <span class="cov8" title="648">{
         if err := config.ValidateName(typ, pat, "Type"); err != nil </span><span class="cov5" title="42">{
                 return err
         }</span>
-        <span class="cov8" title="625">if err := config.ValidateNonEmpty(id, pat, "Id"); err != nil </span><span class="cov4" title="21">{
+        <span class="cov8" title="606">if err := config.ValidateNonEmpty(id, pat, "Id"); err != nil </span><span class="cov4" title="21">{
                 return err
         }</span>
-        <span class="cov8" title="604">if err := config.ValidateNonEmpty(source, pat, "Source"); err != nil </span><span class="cov4" title="21">{
+        <span class="cov8" title="585">if err := config.ValidateNonEmpty(source, pat, "Source"); err != nil </span><span class="cov4" title="21">{
                 return err
         }</span>
-        <span class="cov8" title="583">return nil</span>
+        <span class="cov8" title="564">return nil</span>
 }
 
 func (b *Mqtt5Binding) validatePatternFilter(pat string, filter api.SubscriptionFilter) error <span class="cov6" title="110">{
         if err := config.ValidateName(filter.Type, pat, "Type"); err != nil </span><span class="cov4" title="21">{
                 return err
         }</span>
-        <span class="cov6" title="88">if filter.Share != "" </span><span class="cov4" title="15">{
+        <span class="cov6" title="89">if filter.Share != "" </span><span class="cov4" title="15">{
                 if !b.sharedSubAvailable </span><span class="cov0" title="0">{
                         return fmt.Errorf("shared subscriptions are not supported by the MQTT 5 broker")
                 }</span>
@@ -2720,32 +2728,32 @@ func (b *Mqtt5Binding) validatePatternFilter(pat string, filter api.Subscription
         <span class="cov6" title="83">return nil</span>
 }
 
-func (b *Mqtt5Binding) topicWithLevels(share string, scope api.Scope, levels ...string) (pubTopic string, subTopic string) <span class="cov9" title="1182">{
-        if scope == api.ScopeDef </span><span class="cov6" title="121">{
+func (b *Mqtt5Binding) topicWithLevels(share string, scope api.Scope, levels ...string) (pubTopic string, subTopic string) <span class="cov9" title="1145">{
+        if scope == api.ScopeDef </span><span class="cov6" title="122">{
                 scope = api.ScopeCom
         }</span>
-        <span class="cov9" title="1182">pubTopic = fmt.Sprintf("%s/%s/%s", b.cluster, scope, strings.Join(levels, "/"))
+        <span class="cov9" title="1145">pubTopic = fmt.Sprintf("%s/%s/%s", b.cluster, scope, strings.Join(levels, "/"))
         subTopic = pubTopic
         if share != "" </span><span class="cov3" title="10">{
                 subTopic = fmt.Sprintf("%s/%s/%s/%s/%s", levelShare, share, b.cluster, scope, strings.Join(levels, "/"))
         }</span>
-        <span class="cov9" title="1183">return</span>
+        <span class="cov9" title="1145">return</span>
 }
 
-func (b *Mqtt5Binding) createPubSubContext() (context.Context, context.CancelFunc) <span class="cov9" title="2220">{
-        var cancel context.CancelFunc = func() </span>{<span class="cov9" title="2130">}</span>
-        <span class="cov9" title="2220">ctx := context.Background()
+func (b *Mqtt5Binding) createPubSubContext() (context.Context, context.CancelFunc) <span class="cov10" title="2189">{
+        var cancel context.CancelFunc = func() </span>{<span class="cov9" title="2098">}</span>
+        <span class="cov10" title="2189">ctx := context.Background()
         if b.qos != 0 </span><span class="cov6" title="90">{
                 ctx, cancel = context.WithTimeout(ctx, pubSubAckTimeout)
         }</span>
-        <span class="cov10" title="2221">return ctx, cancel</span>
+        <span class="cov10" title="2189">return ctx, cancel</span>
 }
 
-func (b *Mqtt5Binding) responseInfo(topic string) (string, string) <span class="cov8" title="546">{
+func (b *Mqtt5Binding) responseInfo(topic string) (string, string) <span class="cov8" title="527">{
         return fmt.Sprintf("%s/%s", topic, b.responseId), uuid.NewString()
 }</span>
 
-func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.UserProperties, responseTopic string, correlationId []byte) error <span class="cov9" title="1153">{
+func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.UserProperties, responseTopic string, correlationId []byte) error <span class="cov9" title="1117">{
         ctx, cancel := b.createPubSubContext()
         defer cancel()
 
@@ -2760,14 +2768,14 @@ func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.User
                 User: userProps,
         }
 
-        if responseTopic != "" </span><span class="cov8" title="546">{
+        if responseTopic != "" </span><span class="cov8" title="527">{
                 props.ResponseTopic = responseTopic
         }</span>
-        <span class="cov9" title="1153">if correlationId != nil </span><span class="cov9" title="1131">{
+        <span class="cov9" title="1117">if correlationId != nil </span><span class="cov9" title="1095">{
                 props.CorrelationData = correlationId
         }</span>
 
-        <span class="cov9" title="1153">p := &amp;paho.Publish{
+        <span class="cov9" title="1117">p := &amp;paho.Publish{
                 QoS:        b.qos,
                 Topic:      topic,
                 Payload:    payload,
@@ -2777,19 +2785,19 @@ func (b *Mqtt5Binding) publish(topic string, payload []byte, userProps paho.User
         if _, err := b.conn.Publish(ctx, p); err != nil </span><span class="cov0" title="0">{
                 return services.NewRetryableError(err)
         }</span>
-        <span class="cov9" title="1153">return nil</span>
+        <span class="cov9" title="1117">return nil</span>
 }
 
-func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" title="536">{
+func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" title="538">{
         if len(topics) == 0 </span><span class="cov0" title="0">{
                 return nil
         }</span>
 
-        <span class="cov8" title="536">ctx, cancel := b.createPubSubContext()
+        <span class="cov8" title="538">ctx, cancel := b.createPubSubContext()
         defer cancel()
 
         subs := make([]paho.SubscribeOptions, 0, len(topics))
-        for _, topic := range topics </span><span class="cov8" title="536">{
+        for _, topic := range topics </span><span class="cov8" title="539">{
                 subs = append(subs, paho.SubscribeOptions{
                         Topic: topic,
                         QoS:   b.qos,
@@ -2799,7 +2807,7 @@ func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" titl
                         NoLocal: b.noLocal &amp;&amp; !strings.HasPrefix(topic, levelShare),
                 })
         }</span>
-        <span class="cov8" title="537">s := &amp;paho.Subscribe{Subscriptions: subs}
+        <span class="cov8" title="539">s := &amp;paho.Subscribe{Subscriptions: subs}
 
         b.mu.RLock()
         defer b.mu.RUnlock()
@@ -2808,18 +2816,18 @@ func (b *Mqtt5Binding) subscribe(topics ...string) error <span class="cov8" titl
                 return fmt.Errorf("subscribe failed as binding is not yet open")
         }</span>
 
-        <span class="cov8" title="536">if _, err := b.conn.Subscribe(ctx, s); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="538">if _, err := b.conn.Subscribe(ctx, s); err != nil </span><span class="cov0" title="0">{
                 return services.RetryableErrorf("subscribe %v failed: %w", topics, err)
         }</span>
-        <span class="cov8" title="537">return nil</span>
+        <span class="cov8" title="539">return nil</span>
 }
 
-func (b *Mqtt5Binding) unsubscribe(topics ...string) error <span class="cov8" title="532">{
+func (b *Mqtt5Binding) unsubscribe(topics ...string) error <span class="cov8" title="534">{
         if len(topics) == 0 </span><span class="cov0" title="0">{
                 return nil
         }</span>
 
-        <span class="cov8" title="532">ctx, cancel := b.createPubSubContext()
+        <span class="cov8" title="534">ctx, cancel := b.createPubSubContext()
         defer cancel()
 
         u := &amp;paho.Unsubscribe{Topics: topics}
@@ -2831,19 +2839,19 @@ func (b *Mqtt5Binding) unsubscribe(topics ...string) error <span class="cov8" ti
         // acquired we can safely continue without read locking. All other
         // invocations of unsubscribe are in a user code context when calling an
         // UnsubscribeBindungFunc, so acquiring the read lock won't fail.
-        if b.mu.TryRLock() </span><span class="cov8" title="528">{
+        if b.mu.TryRLock() </span><span class="cov8" title="531">{
                 defer b.mu.RUnlock()
         }</span>
 
-        <span class="cov8" title="532">if b.conn == nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="534">if b.conn == nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("unsubscribe failed as binding is not yet open")
         }</span>
 
-        <span class="cov8" title="532">if _, err := b.conn.Unsubscribe(ctx, u); err != nil </span><span class="cov1" title="2">{
+        <span class="cov8" title="534">if _, err := b.conn.Unsubscribe(ctx, u); err != nil </span><span class="cov1" title="1">{
                 plog.Printf("unsubscribe %v failed: %v", topics, err)
                 return services.RetryableErrorf("unsubscribe %v failed: %w", topics, err)
         }</span>
-        <span class="cov8" title="527">return nil</span>
+        <span class="cov8" title="531">return nil</span>
 }
 
 func (b *Mqtt5Binding) resubscribe() <span class="cov2" title="5">{
@@ -2869,12 +2877,12 @@ func (b *Mqtt5Binding) getTopics() []string <span class="cov2" title="5">{
         return topics
 }</span>
 
-func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
+func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1230">{
         if p.Properties == nil || p.Properties.User == nil </span><span class="cov0" title="0">{
                 plog.Printf("handle: discard incoming topic %s without Properties", p.Topic)
                 return
         }</span>
-        <span class="cov9" title="1265">levels := strings.Split(p.Topic, "/")
+        <span class="cov9" title="1230">levels := strings.Split(p.Topic, "/")
         levelPattern, typeName := levels[2], levels[3]
         id, source := p.Properties.User.Get(userPropId), p.Properties.User.Get(userPropSource)
         routeFilter := mqttRouteFilter{Topic: p.Topic}
@@ -2885,8 +2893,8 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
                 return
         }</span>
 
-        <span class="cov9" title="1263">switch levelPattern </span>{
-        case levelEvent:<span class="cov4" title="24">
+        <span class="cov9" title="1228">switch levelPattern </span>{
+        case levelEvent:<span class="cov4" title="23">
                 event := api.Event{
                         Type:            typeName,
                         Id:              id,
@@ -2896,7 +2904,7 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
                         DataContentType: p.Properties.User.Get(userPropDataContentType),
                 }
                 b.eventRouter.Dispatch(routeFilter, event)</span>
-        case levelAction:<span class="cov8" title="647">
+        case levelAction:<span class="cov8" title="632">
                 actionCb := api.ActionWithCallback{
                         Action: api.Action{
                                 Type:            typeName,
@@ -2905,18 +2913,18 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
                                 Params:          p.Payload,
                                 DataContentType: p.Properties.User.Get(userPropDataContentType),
                         },
-                        Callback: func(result api.ActionResult) error </span><span class="cov8" title="564">{
+                        Callback: func(result api.ActionResult) error </span><span class="cov8" title="547">{
                                 return b.publishActionResult(result, responseTopic, correlationId)
                         }</span>,
                 }
-                <span class="cov8" title="643">b.actionRouter.Dispatch(routeFilter, actionCb)</span>
-        case levelActionResult:<span class="cov8" title="554">
+                <span class="cov8" title="632">b.actionRouter.Dispatch(routeFilter, actionCb)</span>
+        case levelActionResult:<span class="cov8" title="535">
                 seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
                 if err != nil </span><span class="cov0" title="0">{
                         plog.Printf("handle: error on SequenceNumber: %v", err)
                         return
                 }</span>
-                <span class="cov8" title="554">result := api.ActionResult{
+                <span class="cov8" title="535">result := api.ActionResult{
                         Context:         p.Properties.User.Get(userPropContext),
                         Data:            p.Payload,
                         DataContentType: p.Properties.User.Get(userPropDataContentType),
@@ -2924,7 +2932,7 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
                 }
                 routeFilter.CorrelationId = string(p.Properties.CorrelationData)
                 b.actionResultRouter.Dispatch(routeFilter, result)</span>
-        case levelQuery:<span class="cov4" title="14">
+        case levelQuery:<span class="cov4" title="13">
                 queryCb := api.QueryWithCallback{
                         Query: api.Query{
                                 Type:            typeName,
@@ -2937,14 +2945,14 @@ func (b *Mqtt5Binding) handle(p *paho.Publish) <span class="cov9" title="1265">{
                                 return b.publishQueryResult(result, responseTopic, correlationId)
                         }</span>,
                 }
-                <span class="cov4" title="14">b.queryRouter.Dispatch(routeFilter, queryCb)</span>
-        case levelQueryResult:<span class="cov4" title="22">
+                <span class="cov4" title="13">b.queryRouter.Dispatch(routeFilter, queryCb)</span>
+        case levelQueryResult:<span class="cov4" title="24">
                 seqNo, err := strconv.ParseInt(p.Properties.User.Get(userPropSequenceNumber), 10, 64)
                 if err != nil </span><span class="cov0" title="0">{
                         plog.Printf("handle: error on SequenceNumber: %v", err)
                         return
                 }</span>
-                <span class="cov4" title="22">result := api.QueryResult{
+                <span class="cov4" title="24">result := api.QueryResult{
                         Context:         p.Properties.User.Get(userPropContext),
                         Data:            p.Payload,
                         DataContentType: p.Properties.User.Get(userPropDataContentType),
@@ -2992,7 +3000,7 @@ func (r *retryableError) Retryable() bool <span class="cov6" title="46">{
 //
 // Use the function IsRetryable(error) to check whether a given error is
 // retryable or not.
-func RetryableErrorf(format string, a ...any) error <span class="cov6" title="32">{
+func RetryableErrorf(format string, a ...any) error <span class="cov6" title="31">{
         return &amp;retryableError{error: fmt.Errorf(format, a...)}
 }</span>
 
@@ -3001,8 +3009,8 @@ func RetryableErrorf(format string, a ...any) error <span class="cov6" title="32
 //
 // Use the function IsRetryable(error) to check whether a given error is
 // retryable or not.
-func NewRetryableError(err error) error <span class="cov8" title="116">{
-        if err == nil </span><span class="cov7" title="106">{
+func NewRetryableError(err error) error <span class="cov8" title="117">{
+        if err == nil </span><span class="cov7" title="107">{
                 return nil
         }</span>
         <span class="cov4" title="10">return &amp;retryableError{error: err}</span>
@@ -3099,7 +3107,7 @@ import (
 )
 
 // DecodeMsgPack decodes from a MessagePack encoded byte slice.
-func DecodeMsgPack(b []byte, out any) error <span class="cov10" title="2483">{
+func DecodeMsgPack(b []byte, out any) error <span class="cov10" title="2443">{
         var hd codec.MsgpackHandle
         dec := codec.NewDecoderBytes(b, &amp;hd)
         return dec.Decode(out)
@@ -3113,7 +3121,7 @@ func DecodeMsgPackFromReader(r io.ReadCloser, out any) error <span class="cov1" 
 }</span>
 
 // EncodeMsgPack returns an encoded MessagePack object as a byte slice.
-func EncodeMsgPack(in any) ([]byte, error) <span class="cov9" title="1910">{
+func EncodeMsgPack(in any) ([]byte, error) <span class="cov9" title="1878">{
         var b []byte
         var hd codec.MsgpackHandle
         enc := codec.NewEncoderBytes(&amp;b, &amp;hd)
@@ -3168,12 +3176,15 @@ func (f *RaftFsm) State() api.State <span class="cov4" title="9">{
 // manner to prevent blocking send operations.
 func (f *RaftFsm) AddStateChangeObserver(ch chan api.Input) uint64 <span class="cov3" title="5">{
         f.mu.Lock()
-        defer f.mu.Unlock()
         f.nextObserverId++
         f.observers[f.nextObserverId] = ch
+        f.mu.Unlock()
 
         // Emit synthetic inputs reproducing the current key-value pairs.
         go func() </span><span class="cov3" title="5">{
+                // we need to protect all accesses to shared maps
+                f.mu.Lock()
+                defer f.mu.Unlock()
                 for k, v := range f.state </span><span class="cov1" title="2">{
                         ch &lt;- f.cloneInput(&amp;api.Input{Op: api.InputOpSet, Key: k, Value: v})
                 }</span>
@@ -3243,7 +3254,7 @@ func (f *RaftFsm) Apply(entry *hraft.Log) any <span class="cov9" title="423">{
 // implemented to allow for concurrent updates while a snapshot is happening.
 //
 // Snapshot implements the [hraft.FSM] interface.
-func (f *RaftFsm) Snapshot() (hraft.FSMSnapshot, error) <span class="cov3" title="5">{
+func (f *RaftFsm) Snapshot() (hraft.FSMSnapshot, error) <span class="cov3" title="6">{
         f.mu.Lock()
         defer f.mu.Unlock()
 
@@ -3283,14 +3294,15 @@ func (f *RaftFsm) cloneInput(in *api.Input) api.Input <span class="cov9" title="
         }
 }
 
-func (f *RaftFsm) cloneState() api.State <span class="cov4" title="14">{
+func (f *RaftFsm) cloneState() api.State <span class="cov4" title="15">{
         s := make(api.State, len(f.state))
-        for k, v := range f.state </span><span class="cov10" title="545">{
+        // no need for locking, as the lock is held by all callers of this function
+        for k, v := range f.state </span><span class="cov10" title="527">{
                 cv := make([]byte, len(v))
                 copy(cv, v)
                 s[k] = cv
         }</span>
-        <span class="cov4" title="14">return s</span>
+        <span class="cov4" title="15">return s</span>
 }
 
 // fsmSnapshot implements the [hraft.FSMSnapshot] interface. It is returned by
@@ -3304,36 +3316,36 @@ type fsmSnapshot struct {
 // sink.Close() when finished or call sink.Cancel() on error.
 //
 // Persist implements the [hraft.FSMSnapshot] interface.
-func (f *fsmSnapshot) Persist(sink hraft.SnapshotSink) error <span class="cov3" title="5">{
-        err := func() error </span><span class="cov3" title="5">{
+func (f *fsmSnapshot) Persist(sink hraft.SnapshotSink) error <span class="cov3" title="6">{
+        err := func() error </span><span class="cov3" title="6">{
                 b, err := EncodeMsgPack(f)
                 if err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
 
-                <span class="cov3" title="5">if _, err := sink.Write(b); err != nil </span><span class="cov0" title="0">{
+                <span class="cov3" title="6">if _, err := sink.Write(b); err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
 
-                <span class="cov3" title="5">if err := sink.Close(); err != nil </span><span class="cov0" title="0">{
+                <span class="cov3" title="6">if err := sink.Close(); err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
 
-                <span class="cov3" title="5">return nil</span>
+                <span class="cov3" title="6">return nil</span>
         }()
 
-        <span class="cov3" title="5">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov3" title="6">if err != nil </span><span class="cov0" title="0">{
                 _ = sink.Cancel()
                 return err
         }</span>
 
-        <span class="cov3" title="5">return nil</span>
+        <span class="cov3" title="6">return nil</span>
 }
 
 // Release is invoked when we are finished with the snapshot.
 //
 // Release implements the [hraft.FSMSnapshot] interface.
-func (f *fsmSnapshot) Release() {<span class="cov3" title="5">
+func (f *fsmSnapshot) Release() {<span class="cov3" title="6">
 }</span>
 </pre>
 		
@@ -3450,14 +3462,18 @@ func (b *RaftBinding) Open(cfg *config.Config, com comapi.Api) error <span class
         }
         <span class="cov3" title="5">switch v := cfg.Services.State.Opts["snapshotThreshold"].(type) </span>{
         case int:<span class="cov2" title="2">
-                config.SnapshotThreshold = uint64(v)</span>
+                if v &lt; 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("snapshotThreshold must be a positive integer")
+                }</span> else<span class="cov2" title="2"> {
+                        config.SnapshotThreshold = uint64(v)
+                }</span>
         }
 
         // Increase commit timeout to reduce rate of periodic AppendEntries RPCs to
         // followers (see https://github.com/hashicorp/raft/issues/282).
         <span class="cov3" title="5">config.CommitTimeout = config.HeartbeatTimeout / 10
 
-        config.LogLevel = "OFF"        // too many "ERROR" messages are just informational in hashicorp-raft
+        config.LogLevel = "OFF" // too many "ERROR" messages are just informational in hashicorp-raft
         if plog.Enabled() </span><span class="cov0" title="0">{
                 config.LogLevel = "ERROR"
                 if cfg.Services.State.Opts["debug"] == true </span><span class="cov0" title="0">{
@@ -3602,13 +3618,13 @@ func (b *RaftBinding) ProposeInput(ctx context.Context, in *api.Input) error <sp
         // is returned or until the given context is canceled.
         <span class="cov9" title="206">err = services.RetryWithBackoff(ctx, services.Backoff{Base: 100 * time.Millisecond, Cap: 100 * time.Millisecond}, func(cnt int) error </span><span class="cov10" title="207">{
                 f := b.raft.Apply(cmd, 0)
-                if f.Error() != nil </span><span class="cov8" title="103">{
+                if f.Error() != nil </span><span class="cov8" title="104">{
                         if f.Error() != hraft.ErrNotLeader </span><span class="cov0" title="0">{
                                 return services.NewRetryableError(f.Error())
-                        }</span> else<span class="cov8" title="103"> {
+                        }</span> else<span class="cov8" title="104"> {
                                 ctx, cancel := context.WithTimeout(context.Background(), b.lfwTimeout)
                                 defer cancel()
-                                if err := b.applyByLeaderForwarding(ctx, cmd, 0); err == ctx.Err() </span><span class="cov8" title="103">{
+                                if err := b.applyByLeaderForwarding(ctx, cmd, 0); err == ctx.Err() </span><span class="cov8" title="104">{
                                         // If context deadline is exceeded, no response has been
                                         // sent as there is no leader currently. In this case return
                                         // a retryable error so that we can repropose with a backoff
@@ -3618,11 +3634,11 @@ func (b *RaftBinding) ProposeInput(ctx context.Context, in *api.Input) error <sp
                                         return err
                                 }</span>
                         }
-                } else<span class="cov8" title="104"> {
+                } else<span class="cov8" title="103"> {
                         if err, ok := f.Response().(error); ok </span><span class="cov0" title="0">{
                                 return err // non-retryable error by RaftFsm.Apply (never happens in this implementation)
                         }</span>
-                        <span class="cov8" title="104">return nil</span>
+                        <span class="cov8" title="103">return nil</span>
                 }
         })
         <span class="cov9" title="206">if err != nil </span><span class="cov0" title="0">{
@@ -3695,22 +3711,22 @@ func (b *RaftBinding) removeServerByLeaderForwarding(ctx context.Context, startD
                 Timeout:  startDelayOnLeader,
         }
         var resp RemoveServerResponse
-        if err := b.trans.LfwRemoveServer(ctx, req, &amp;resp); err != nil </span><span class="cov0" title="0">{
+        if err := b.trans.LfwRemoveServer(ctx, req, &amp;resp); err != nil </span><span class="cov1" title="1">{
                 return err
         }</span>
-        <span class="cov2" title="2">return nil</span>
+        <span class="cov1" title="1">return nil</span>
 }
 
-func (b *RaftBinding) applyByLeaderForwarding(ctx context.Context, cmd []byte, startDelayOnLeader time.Duration) error <span class="cov8" title="103">{
+func (b *RaftBinding) applyByLeaderForwarding(ctx context.Context, cmd []byte, startDelayOnLeader time.Duration) error <span class="cov8" title="104">{
         req := &amp;ApplyRequest{Command: cmd, Timeout: startDelayOnLeader}
         var resp ApplyResponse
         if err := b.trans.LfwApply(ctx, req, &amp;resp); err != nil </span><span class="cov1" title="1">{
                 return err
         }</span>
-        <span class="cov8" title="102">if err := resp.Response; err != nil </span><span class="cov0" title="0">{ // any error response by RaftFsm.Apply is non-retryable
+        <span class="cov8" title="103">if err := resp.Response; err != nil </span><span class="cov0" title="0">{ // any error response by RaftFsm.Apply is non-retryable
                 return err
         }</span>
-        <span class="cov8" title="102">return nil</span>
+        <span class="cov8" title="103">return nil</span>
 }
 
 func (b *RaftBinding) processLeaderForwardedRPCs() <span class="cov3" title="5">{
@@ -3746,23 +3762,23 @@ func (b *RaftBinding) processLeaderForwardingRPC(rpc hraft.RPC) (stop bool) <spa
                                 rpc.Respond(&amp;AddVoterResponse{Index: f.Index()}, nil)
                         }</span>
                 }
-        case *RemoveServerRequest:<span class="cov2" title="2">
+        case *RemoveServerRequest:<span class="cov1" title="1">
                 if f := b.raft.RemoveServer(cmd.ServerId, 0, cmd.Timeout); f.Error() != nil </span><span class="cov0" title="0">{
                         rpc.Respond(nil, services.NewRetryableError(f.Error()))
-                }</span> else<span class="cov2" title="2"> {
+                }</span> else<span class="cov1" title="1"> {
                         rpc.Respond(&amp;RemoveServerResponse{Index: f.Index()}, nil)
                 }</span>
-        case *ApplyRequest:<span class="cov8" title="104">
+        case *ApplyRequest:<span class="cov8" title="105">
                 if f := b.raft.Apply(cmd.Command, cmd.Timeout); f.Error() != nil </span><span class="cov2" title="2">{
                         rpc.Respond(nil, services.NewRetryableError(f.Error()))
-                }</span> else<span class="cov8" title="102"> {
+                }</span> else<span class="cov8" title="103"> {
                         if err, ok := f.Response().(error); ok </span><span class="cov0" title="0">{
                                 rpc.Respond(&amp;ApplyResponse{Response: err}, nil) // non-retryable error by RaftFsm.Apply
-                        }</span> else<span class="cov8" title="102"> {
+                        }</span> else<span class="cov8" title="103"> {
                                 // Wait until all preceding log operations have been applied to leader fsm.
                                 if fb := b.raft.Barrier(0); fb.Error() != nil </span><span class="cov0" title="0">{
                                         rpc.Respond(nil, services.NewRetryableError(fb.Error()))
-                                }</span> else<span class="cov8" title="102"> {
+                                }</span> else<span class="cov8" title="103"> {
                                         rpc.Respond(&amp;ApplyResponse{Index: f.Index(), Response: nil}, nil)
                                 }</span>
                         }
@@ -3947,45 +3963,45 @@ func (s *RaftStore) RemoveMembershipChangeObserver(chanId uint64) <span class="c
 // FirstIndex returns the first index written. 0 for no entries.
 //
 // FirstIndex implements the [hraft.LogStore] interface.
-func (s *RaftStore) FirstIndex() (uint64, error) <span class="cov3" title="7">{
+func (s *RaftStore) FirstIndex() (uint64, error) <span class="cov3" title="8">{
         first := uint64(0) // zero on empty log
-        err := s.logStore.ScanRangeB(nil, nil, func(k, v []byte) bool </span><span class="cov2" title="5">{
+        err := s.logStore.ScanRangeB(nil, nil, func(k, v []byte) bool </span><span class="cov3" title="6">{
                 first = bytesToUint64(k)
                 return false // stop scanning
         }</span>)
-        <span class="cov3" title="7">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov3" title="8">if err != nil </span><span class="cov0" title="0">{
                 return 0, err
         }</span>
-        <span class="cov3" title="7">return first, nil</span>
+        <span class="cov3" title="8">return first, nil</span>
 }
 
 // LastIndex returns the last index written. 0 for no entries.
 //
 // LastIndex implements the [hraft.LogStore] interface.
-func (s *RaftStore) LastIndex() (uint64, error) <span class="cov7" title="205">{
+func (s *RaftStore) LastIndex() (uint64, error) <span class="cov7" title="211">{
         last := uint64(0) // zero on empty log
-        err := s.logStore.ScanRangeReverseB(nil, nil, func(k, v []byte) bool </span><span class="cov7" title="197">{
+        err := s.logStore.ScanRangeReverseB(nil, nil, func(k, v []byte) bool </span><span class="cov7" title="203">{
                 last = bytesToUint64(k)
                 return false // stop scanning
         }</span>)
-        <span class="cov7" title="205">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov7" title="211">if err != nil </span><span class="cov0" title="0">{
                 return 0, err
         }</span>
-        <span class="cov7" title="205">return last, nil</span>
+        <span class="cov7" title="211">return last, nil</span>
 }
 
 // GetLog gets a log entry at a given index.
 //
 // GetLog implements the [hraft.LogStore] interface.
-func (s *RaftStore) GetLog(index uint64, log *hraft.Log) error <span class="cov9" title="1040">{
+func (s *RaftStore) GetLog(index uint64, log *hraft.Log) error <span class="cov9" title="1034">{
         val, err := s.logStore.GetB(uint64ToBytes(index))
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov9" title="1040">if val == nil </span><span class="cov3" title="9">{
+        <span class="cov9" title="1034">if val == nil </span><span class="cov3" title="9">{
                 return hraft.ErrLogNotFound
         }</span>
-        <span class="cov9" title="1031">return DecodeMsgPack(val, log)</span>
+        <span class="cov9" title="1025">return DecodeMsgPack(val, log)</span>
 }
 
 // StoreLog stores a log entry.
@@ -4005,22 +4021,22 @@ func (s *RaftStore) StoreLog(log *hraft.Log) error <span class="cov2" title="5">
 // signal the discontinuity between logs before the snapshot and logs after.
 //
 // StoreLogs implements the [hraft.LogStore] interface.
-func (s *RaftStore) StoreLogs(logs []*hraft.Log) error <span class="cov8" title="643">{
-        for _, log := range logs </span><span class="cov8" title="660">{
-                if log.Type == hraft.LogConfiguration </span><span class="cov4" title="18">{
+func (s *RaftStore) StoreLogs(logs []*hraft.Log) error <span class="cov8" title="646">{
+        for _, log := range logs </span><span class="cov8" title="663">{
+                if log.Type == hraft.LogConfiguration </span><span class="cov4" title="19">{
                         s.sendMembershipChangesForServers(hraft.DecodeConfiguration(log.Data).Servers)
                 }</span>
-                <span class="cov8" title="660">key := uint64ToBytes(log.Index)
+                <span class="cov8" title="663">key := uint64ToBytes(log.Index)
                 b, err := EncodeMsgPack(log)
                 if err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
 
-                <span class="cov8" title="660">if err := s.logStore.SetB(key, b); err != nil </span><span class="cov0" title="0">{
+                <span class="cov8" title="663">if err := s.logStore.SetB(key, b); err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
         }
-        <span class="cov8" title="643">return nil</span>
+        <span class="cov8" title="646">return nil</span>
 }
 
 // DeleteRange deletes a range of log entries. The range is inclusive.
@@ -4079,12 +4095,12 @@ func (s *RaftStore) GetUint64(key []byte) (uint64, error) <span class="cov4" tit
 }
 
 // bytesToUint64 converts bytes to a uint64.
-func bytesToUint64(b []byte) uint64 <span class="cov7" title="207">{
+func bytesToUint64(b []byte) uint64 <span class="cov7" title="214">{
         return binary.BigEndian.Uint64(b)
 }</span>
 
 // uint64ToBytes converts a uint64 to a byte slice.
-func uint64ToBytes(u uint64) []byte <span class="cov10" title="1727">{
+func uint64ToBytes(u uint64) []byte <span class="cov10" title="1724">{
         buf := make([]byte, 8)
         binary.BigEndian.PutUint64(buf, u)
         return buf
@@ -4123,11 +4139,11 @@ func (s *RaftStore) sendMembershipChangesForObserver(raft *hraft.Raft, o observe
         <span class="cov3" title="6">s.observers[s.nextObserverId] = o</span>
 }
 
-func (s *RaftStore) sendMembershipChangesForServers(servers []hraft.Server) <span class="cov4" title="18">{
+func (s *RaftStore) sendMembershipChangesForServers(servers []hraft.Server) <span class="cov4" title="19">{
         s.mu.Lock()
         defer s.mu.Unlock()
 
-        if len(s.observers) == 0 </span><span class="cov3" title="10">{
+        if len(s.observers) == 0 </span><span class="cov3" title="11">{
                 // Ignore early changes that happen before any observer is added, and
                 // late changes that happen after the last observer is removed.
                 return
@@ -4362,7 +4378,7 @@ func (t *RaftTransport) LocalAddr() hraft.ServerAddress <span class="cov3" title
 // AppendEntries requests to the target node.
 //
 // AppendEntriesPipeline implements the [hraft.Transport] interface.
-func (t *RaftTransport) AppendEntriesPipeline(id hraft.ServerID, target hraft.ServerAddress) (hraft.AppendPipeline, error) <span class="cov8" title="356">{
+func (t *RaftTransport) AppendEntriesPipeline(id hraft.ServerID, target hraft.ServerAddress) (hraft.AppendPipeline, error) <span class="cov8" title="349">{
         // Pipelining is not supported by DDA pub-sub transport since no more than
         // one request can be outstanding at once. Skip the whole code path and use
         // synchronous requests.
@@ -4372,7 +4388,7 @@ func (t *RaftTransport) AppendEntriesPipeline(id hraft.ServerID, target hraft.Se
 // AppendEntries sends the appropriate RPC to the target node.
 //
 // AppendEntries implements the [hraft.Transport] interface.
-func (t *RaftTransport) AppendEntries(id hraft.ServerID, target hraft.ServerAddress, args *hraft.AppendEntriesRequest, resp *hraft.AppendEntriesResponse) error <span class="cov8" title="407">{
+func (t *RaftTransport) AppendEntries(id hraft.ServerID, target hraft.ServerAddress, args *hraft.AppendEntriesRequest, resp *hraft.AppendEntriesResponse) error <span class="cov8" title="387">{
         ctx, cancel := context.WithTimeout(context.Background(), t.timeout)
         defer cancel()
         return sendRPC[hraft.AppendEntriesResponse](ctx, t, t.publicationType(rpcTargetedType, target), rpcAppendEntries, args, resp)
@@ -4421,14 +4437,14 @@ func (t *RaftTransport) InstallSnapshot(id hraft.ServerID, target hraft.ServerAd
 // EncodePeer is used to serialize a peer's address
 //
 // EncodePeer implements the [hraft.Transport] interface.
-func (t *RaftTransport) EncodePeer(id hraft.ServerID, addr hraft.ServerAddress) []byte <span class="cov10" title="1159">{
+func (t *RaftTransport) EncodePeer(id hraft.ServerID, addr hraft.ServerAddress) []byte <span class="cov10" title="1128">{
         return []byte(addr)
 }</span>
 
 // DecodePeer is used to deserialize a peer's address.
 //
 // DecodePeer implements the [hraft.Transport] interface.
-func (t *RaftTransport) DecodePeer(buf []byte) hraft.ServerAddress <span class="cov8" title="406">{
+func (t *RaftTransport) DecodePeer(buf []byte) hraft.ServerAddress <span class="cov8" title="389">{
         return hraft.ServerAddress(buf)
 }</span>
 
@@ -4510,17 +4526,17 @@ func (t *RaftTransport) LfwRemoveServer(ctx context.Context, args *RemoveServerR
 //
 // LfwApply is a blocking operation that will time out with an error in case no
 // response is received within a time interval given by the context.
-func (t *RaftTransport) LfwApply(ctx context.Context, args *ApplyRequest, resp *ApplyResponse) error <span class="cov6" title="103">{
+func (t *RaftTransport) LfwApply(ctx context.Context, args *ApplyRequest, resp *ApplyResponse) error <span class="cov6" title="104">{
         return sendRPC[ApplyResponse](ctx, t, t.publicationType(rpcLeaderForwardedType), rpcApply, args, resp)
 }</span>
 
-func sendRPC[T any](ctx context.Context, t *RaftTransport, pubType string, rpcOp string, args any, resp *T) error <span class="cov8" title="518">{
+func sendRPC[T any](ctx context.Context, t *RaftTransport, pubType string, rpcOp string, args any, resp *T) error <span class="cov8" title="499">{
         b, err := EncodeMsgPack(args)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
 
-        <span class="cov8" title="518">res, err := t.com.PublishAction(ctx, comapi.Action{
+        <span class="cov8" title="499">res, err := t.com.PublishAction(ctx, comapi.Action{
                 Type:   pubType,
                 Id:     rpcOp,
                 Source: string(t.localAddr),
@@ -4530,31 +4546,31 @@ func sendRPC[T any](ctx context.Context, t *RaftTransport, pubType string, rpcOp
                 return err
         }</span>
 
-        <span class="cov8" title="518">select </span>{
-        case &lt;-t.shutdownCh:<span class="cov2" title="3">
+        <span class="cov8" title="499">select </span>{
+        case &lt;-t.shutdownCh:<span class="cov1" title="1">
                 return ErrTransportShutdown</span>
-        case ar, ok := &lt;-res:<span class="cov8" title="515">
+        case ar, ok := &lt;-res:<span class="cov8" title="498">
                 if !ok </span><span class="cov1" title="2">{
                         return ctx.Err()
                 }</span>
-                <span class="cov8" title="513">var res rpcResponse[T]
+                <span class="cov8" title="496">var res rpcResponse[T]
                 if err := DecodeMsgPack(ar.Data, &amp;res); err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
-                <span class="cov8" title="513">if res.Error == "" </span><span class="cov8" title="513">{
+                <span class="cov8" title="496">if res.Error == "" </span><span class="cov8" title="496">{
                         *resp = res.Response
                         return nil
                 }</span> else<span class="cov0" title="0"> {
                         if res.Retryable </span><span class="cov0" title="0">{
-                                return services.RetryableErrorf(res.Error)
+                                return services.RetryableErrorf("%s", res.Error)
                         }</span> else<span class="cov0" title="0"> {
-                                return fmt.Errorf(res.Error)
+                                return fmt.Errorf("%s", res.Error)
                         }</span>
                 }
         }
 }
 
-func sendRPCResponse[T any](t *RaftTransport, resp hraft.RPCResponse, ac comapi.ActionWithCallback) error <span class="cov8" title="513">{
+func sendRPCResponse[T any](t *RaftTransport, resp hraft.RPCResponse, ac comapi.ActionWithCallback) error <span class="cov8" title="496">{
         res := &amp;rpcResponse[*T]{
                 Response:  nil,
                 Error:     "",
@@ -4563,27 +4579,27 @@ func sendRPCResponse[T any](t *RaftTransport, resp hraft.RPCResponse, ac comapi.
         if resp.Error != nil </span><span class="cov0" title="0">{
                 res.Error = resp.Error.Error()
                 res.Retryable = services.IsRetryable(resp.Error)
-        }</span> else<span class="cov8" title="513"> {
+        }</span> else<span class="cov8" title="496"> {
                 res.Response = resp.Response.(*T)
         }</span>
-        <span class="cov8" title="513">if b, err := EncodeMsgPack(res); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="496">if b, err := EncodeMsgPack(res); err != nil </span><span class="cov0" title="0">{
                 return err
-        }</span> else<span class="cov8" title="513"> {
+        }</span> else<span class="cov8" title="496"> {
                 if err := ac.Callback(comapi.ActionResult{
                         Context: string(t.localAddr),
                         Data:    b,
                 }); err != nil </span><span class="cov0" title="0">{
                         return err
                 }</span>
-                <span class="cov8" title="513">return nil</span>
+                <span class="cov8" title="496">return nil</span>
         }
 }
 
-func (t *RaftTransport) publicationType(rpcType rpcType, target ...hraft.ServerAddress) string <span class="cov8" title="518">{
+func (t *RaftTransport) publicationType(rpcType rpcType, target ...hraft.ServerAddress) string <span class="cov8" title="499">{
         switch rpcType </span>{
-        case rpcTargetedType:<span class="cov8" title="410">
+        case rpcTargetedType:<span class="cov8" title="390">
                 return fmt.Sprintf("%s%s", rpcTargetedType, target[0])</span>
-        default:<span class="cov6" title="108">
+        default:<span class="cov7" title="109">
                 return string(rpcLeaderForwardedType)</span>
         }
 }
@@ -4622,30 +4638,38 @@ func (t *RaftTransport) subscribeRpcs() <span class="cov3" title="5">{
 
         <span class="cov3" title="5">go func() </span><span class="cov3" title="5">{
                 defer cancel() // Unsubscribe RPC subscriptions on shutdown
-                for </span><span class="cov9" title="629">{
+                for </span><span class="cov9" title="612">{
                         select </span>{
                         case &lt;-t.shutdownCh:<span class="cov0" title="0">
                                 return</span> // Stop fast on closing transport
-                        default:<span class="cov9" title="629"></span>
+                        default:<span class="cov9" title="612"></span>
                         }
 
-                        <span class="cov9" title="629">select </span>{
+                        <span class="cov9" title="612">select </span>{
                         case &lt;-t.shutdownCh:<span class="cov3" title="5">
                                 return</span>
-                        case ac, ok := &lt;-acsNode:<span class="cov8" title="406">
+                        case ac, ok := &lt;-acsNode:<span class="cov8" title="389">
                                 if !ok </span><span class="cov0" title="0">{
                                         return // stop fast on closing transport
                                 }</span>
-                                <span class="cov8" title="406">if err := t.handleRpc(ac); err != nil </span><span class="cov0" title="0">{
-                                        plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
-                                }</span>
-                        case ac, ok := &lt;-acsLfw:<span class="cov7" title="218">
+                                // Rpcs need to be handled concurrently, otherwise HOL occurs
+                                // and cluster degenerates very quickly
+                                <span class="cov8" title="389">go func() </span><span class="cov8" title="389">{
+                                        if err := t.handleRpc(ac); err != nil </span><span class="cov0" title="0">{
+                                                plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
+                                        }</span>
+                                }()
+                        case ac, ok := &lt;-acsLfw:<span class="cov7" title="219">
                                 if !ok </span><span class="cov0" title="0">{
                                         return // stop fast on closing transport
                                 }</span>
-                                <span class="cov7" title="218">if err := t.handleRpc(ac); err != nil </span><span class="cov0" title="0">{
-                                        plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
-                                }</span>
+                                // Rpcs need to be handled concurrently, otherwise HOL occurs
+                                // and cluster degenerates very quickly
+                                <span class="cov7" title="219">go func() </span><span class="cov7" title="215">{
+                                        if err := t.handleRpc(ac); err != nil </span><span class="cov0" title="0">{
+                                                plog.Printf("failed to handle incoming action %+v: %v", ac.Action, err)
+                                        }</span>
+                                }()
                         }
                 }
         }()
@@ -4654,16 +4678,16 @@ func (t *RaftTransport) subscribeRpcs() <span class="cov3" title="5">{
 // handleRpc decodes and dispatches any incoming remote operation. Returns nil
 // if a response (including a potential error) could be transmitted
 // successfully; otherwise an error is returned.
-func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span class="cov9" title="624">{
+func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span class="cov9" title="608">{
         // Ignore leader forwarded requests that originate from the same Raft node.
         // Such operations must be tried locally first (with success on a leader
         // node) before forwarding them to all other nodes.
-        if ac.Type == string(rpcLeaderForwardedType) &amp;&amp; ac.Source == string(t.localAddr) </span><span class="cov6" title="108">{
+        if ac.Type == string(rpcLeaderForwardedType) &amp;&amp; ac.Source == string(t.localAddr) </span><span class="cov7" title="109">{
                 return nil
         }</span>
 
-        <span class="cov8" title="516">t.shutdownMu.Lock()
-        defer t.shutdownMu.Unlock()
+        <span class="cov8" title="499">t.shutdownMu.RLock()
+        defer t.shutdownMu.RUnlock()
 
         if t.shutdown </span><span class="cov0" title="0">{
                 // Stop handling action immediately when shutdown is ongoing.
@@ -4671,7 +4695,7 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span clas
         }</span>
 
         // Create the RPC object
-        <span class="cov8" title="516">respCh := make(chan hraft.RPCResponse, 1)
+        <span class="cov8" title="499">respCh := make(chan hraft.RPCResponse, 1)
         rpc := hraft.RPC{
                 RespChan: respCh,
         }
@@ -4681,7 +4705,7 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span clas
         // Decode the RPC
         isHeartbeat := false
         switch ac.Type </span>{
-        case string(rpcLeaderForwardedType):<span class="cov6" title="110"> // leader forwarding operations
+        case string(rpcLeaderForwardedType):<span class="cov7" title="110"> // leader forwarding operations
                 consumeChan = t.lfwChan
                 switch ac.Id </span>{
                 case rpcAddVoter:<span class="cov2" title="4">
@@ -4690,37 +4714,37 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span clas
                                 return sendRPCResponse[AddVoterResponse](t, hraft.RPCResponse{Error: err}, ac)
                         }</span>
                         <span class="cov2" title="4">rpc.Command = &amp;req</span>
-                case rpcRemoveServer:<span class="cov1" title="2">
+                case rpcRemoveServer:<span class="cov1" title="1">
                         var req RemoveServerRequest
                         if err := DecodeMsgPack(ac.Params, &amp;req); err != nil </span><span class="cov0" title="0">{
                                 return sendRPCResponse[RemoveServerResponse](t, hraft.RPCResponse{Error: err}, ac)
                         }</span>
-                        <span class="cov1" title="2">rpc.Command = &amp;req</span>
-                case rpcApply:<span class="cov6" title="104">
+                        <span class="cov1" title="1">rpc.Command = &amp;req</span>
+                case rpcApply:<span class="cov6" title="105">
                         var req ApplyRequest
                         if err := DecodeMsgPack(ac.Params, &amp;req); err != nil </span><span class="cov0" title="0">{
                                 return sendRPCResponse[ApplyResponse](t, hraft.RPCResponse{Error: err}, ac)
                         }</span>
-                        <span class="cov6" title="104">rpc.Command = &amp;req</span>
+                        <span class="cov6" title="105">rpc.Command = &amp;req</span>
                 default:<span class="cov0" title="0">
                         return fmt.Errorf("unknown leader forwarding rpc type %s from %s", ac.Id, ac.Source)</span>
                 }
-        default:<span class="cov8" title="406"> // node-targeted operations
+        default:<span class="cov8" title="389"> // node-targeted operations
                 consumeChan = t.consumeCh
                 switch ac.Id </span>{
-                case rpcAppendEntries:<span class="cov8" title="403">
+                case rpcAppendEntries:<span class="cov8" title="386">
                         var req hraft.AppendEntriesRequest
                         if err := DecodeMsgPack(ac.Params, &amp;req); err != nil </span><span class="cov0" title="0">{
                                 return sendRPCResponse[hraft.AppendEntriesResponse](t, hraft.RPCResponse{Error: err}, ac)
                         }</span>
-                        <span class="cov8" title="403">rpc.Command = &amp;req
+                        <span class="cov8" title="386">rpc.Command = &amp;req
 
                         leaderAddr := req.RPCHeader.Addr
 
                         // Check if this is a heartbeat (sent as AppendEntries request)
                         if req.Term != 0 &amp;&amp; leaderAddr != nil &amp;&amp;
                                 req.PrevLogEntry == 0 &amp;&amp; req.PrevLogTerm == 0 &amp;&amp;
-                                len(req.Entries) == 0 &amp;&amp; req.LeaderCommitIndex == 0 </span><span class="cov5" title="44">{
+                                len(req.Entries) == 0 &amp;&amp; req.LeaderCommitIndex == 0 </span><span class="cov5" title="34">{
                                 isHeartbeat = true
                         }</span>
                 case rpcRequestVote:<span class="cov2" title="3">
@@ -4748,36 +4772,36 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span clas
         }
 
         // Check for heartbeat fast-path
-        <span class="cov8" title="516">if isHeartbeat </span><span class="cov5" title="44">{
+        <span class="cov8" title="499">if isHeartbeat </span><span class="cov5" title="34">{
                 t.heartbeatFnMu.Lock()
                 fn := t.heartbeatFn
                 t.heartbeatFnMu.Unlock()
-                if fn != nil </span><span class="cov5" title="44">{
+                if fn != nil </span><span class="cov5" title="34">{
                         fn(rpc)
                         goto RESP</span>
                 }
         }
 
-        <span class="cov8" title="472">consumeChan &lt;- rpc // dispatch non-heartbeat RPC
+        <span class="cov8" title="465">consumeChan &lt;- rpc // dispatch non-heartbeat RPC
 
 </span>RESP:
-        <span class="cov8" title="516">resp := &lt;-respCh
+        <span class="cov8" title="499">resp := &lt;-respCh
         switch ac.Type </span>{
-        case string(rpcLeaderForwardedType):<span class="cov6" title="110">
+        case string(rpcLeaderForwardedType):<span class="cov7" title="110">
                 switch ac.Id </span>{
                 case rpcAddVoter:<span class="cov2" title="4">
                         return sendLfwResponse[AddVoterResponse](t, resp, ac)</span>
-                case rpcRemoveServer:<span class="cov1" title="2">
+                case rpcRemoveServer:<span class="cov1" title="1">
                         return sendLfwResponse[RemoveServerResponse](t, resp, ac)</span>
-                case rpcApply:<span class="cov6" title="104">
+                case rpcApply:<span class="cov6" title="105">
                         return sendLfwResponse[ApplyResponse](t, resp, ac)</span>
                 default:<span class="cov0" title="0">
                         return fmt.Errorf("unknown leader forwarding rpc type %s from %s", ac.Id, ac.Source)</span>
                 }
 
-        default:<span class="cov8" title="406">
+        default:<span class="cov8" title="389">
                 switch ac.Id </span>{
-                case rpcAppendEntries:<span class="cov8" title="403">
+                case rpcAppendEntries:<span class="cov8" title="386">
                         return sendRPCResponse[hraft.AppendEntriesResponse](t, resp, ac)</span>
                 case rpcRequestVote:<span class="cov2" title="3">
                         return sendRPCResponse[hraft.RequestVoteResponse](t, resp, ac)</span>
@@ -4791,7 +4815,7 @@ func (t *RaftTransport) handleRpc(ac comapi.ActionWithCallback) error <span clas
         }
 }
 
-func sendLfwResponse[T any](t *RaftTransport, resp hraft.RPCResponse, ac comapi.ActionWithCallback) error <span class="cov6" title="110">{
+func sendLfwResponse[T any](t *RaftTransport, resp hraft.RPCResponse, ac comapi.ActionWithCallback) error <span class="cov7" title="110">{
         rError := services.ErrorRetryable(resp.Error)
         if rError == nil </span><span class="cov6" title="107">{
                 return sendRPCResponse[T](t, resp, ac)
@@ -4949,7 +4973,7 @@ func (b *PebbleBinding) Get(key string) ([]byte, error) <span class="cov5" title
 }</span>
 
 // GetB implements the [api.Api] interface.
-func (b *PebbleBinding) GetB(key []byte) ([]byte, error) <span class="cov10" title="1083">{
+func (b *PebbleBinding) GetB(key []byte) ([]byte, error) <span class="cov10" title="1077">{
         b.mu.RLock() // it is safe to call Pebble Get and NewIter from concurrent goroutines
         defer b.mu.RUnlock()
 
@@ -4957,14 +4981,14 @@ func (b *PebbleBinding) GetB(key []byte) ([]byte, error) <span class="cov10" tit
                 return nil, fmt.Errorf("GetB %v failed as binding is not yet open", key)
         }</span>
 
-        <span class="cov10" title="1083">v, closer, err := b.db.Get(key)
+        <span class="cov10" title="1077">v, closer, err := b.db.Get(key)
         if err == pebble.ErrNotFound </span><span class="cov5" title="23">{
                 return nil, nil
         }</span>
-        <span class="cov9" title="1060">if err != nil </span><span class="cov0" title="0">{
+        <span class="cov9" title="1054">if err != nil </span><span class="cov0" title="0">{
                 return nil, services.NewRetryableError(err)
         }</span>
-        <span class="cov9" title="1060">defer closer.Close()
+        <span class="cov9" title="1054">defer closer.Close()
         val := make([]byte, len(v))
         copy(val, v)
         return val, nil</span>
@@ -4976,21 +5000,21 @@ func (b *PebbleBinding) Set(key string, value []byte) error <span class="cov5" t
 }</span>
 
 // SetB implements the [api.Api] interface.
-func (b *PebbleBinding) SetB(key []byte, value []byte) error <span class="cov9" title="718">{
+func (b *PebbleBinding) SetB(key []byte, value []byte) error <span class="cov9" title="721">{
         if value == nil </span><span class="cov3" title="5">{
                 return fmt.Errorf("SetB %v failed as value must not be nil", key)
         }</span>
 
-        <span class="cov9" title="713">b.mu.Lock()
+        <span class="cov9" title="716">b.mu.Lock()
         defer b.mu.Unlock()
 
         if b.db == nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("SetB %v failed as binding is not yet open", key)
         }</span>
-        <span class="cov9" title="713">if err := b.db.Set(key, value, pebble.Sync); err != nil </span><span class="cov0" title="0">{
+        <span class="cov9" title="716">if err := b.db.Set(key, value, pebble.Sync); err != nil </span><span class="cov0" title="0">{
                 return services.NewRetryableError(err)
         }</span>
-        <span class="cov9" title="713">return nil</span>
+        <span class="cov9" title="716">return nil</span>
 }
 
 // Delete implements the [api.Api] interface.
@@ -5110,7 +5134,7 @@ func (b *PebbleBinding) ScanRange(start, end string, callback api.ScanKeyValue) 
 }
 
 // ScanRangeB implements the [api.Api] interface.
-func (b *PebbleBinding) ScanRangeB(start, end []byte, callback api.ScanKeyValueB) error <span class="cov5" title="27">{
+func (b *PebbleBinding) ScanRangeB(start, end []byte, callback api.ScanKeyValueB) error <span class="cov5" title="28">{
         b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
         defer b.mu.RUnlock()
 
@@ -5118,24 +5142,24 @@ func (b *PebbleBinding) ScanRangeB(start, end []byte, callback api.ScanKeyValueB
                 return fmt.Errorf("ScanRangeB [%v,%v) failed as binding is not yet open", start, end)
         }</span>
 
-        <span class="cov5" title="27">iter := b.db.NewIter(&amp;pebble.IterOptions{
+        <span class="cov5" title="28">iter := b.db.NewIter(&amp;pebble.IterOptions{
                 LowerBound: start,
                 UpperBound: end,
         })
-        for iter.First(); iter.Valid(); iter.Next() </span><span class="cov5" title="43">{
+        for iter.First(); iter.Valid(); iter.Next() </span><span class="cov5" title="44">{
                 key := make([]byte, len(iter.Key()))
                 val := make([]byte, len(iter.Value()))
                 copy(key, iter.Key())
                 copy(val, iter.Value())
-                if !callback(key, val) </span><span class="cov3" title="7">{
+                if !callback(key, val) </span><span class="cov3" title="8">{
                         break</span>
                 }
         }
-        <span class="cov5" title="27">return iter.Close()</span>
+        <span class="cov5" title="28">return iter.Close()</span>
 }
 
 // ScanRangeReverseB implements the [api.Api] interface.
-func (b *PebbleBinding) ScanRangeReverseB(start, end []byte, callback api.ScanKeyValueB) error <span class="cov7" title="207">{
+func (b *PebbleBinding) ScanRangeReverseB(start, end []byte, callback api.ScanKeyValueB) error <span class="cov7" title="213">{
         b.mu.RLock() // it is safe to call Pebble NewIter and Get from concurrent goroutines
         defer b.mu.RUnlock()
 
@@ -5143,20 +5167,20 @@ func (b *PebbleBinding) ScanRangeReverseB(start, end []byte, callback api.ScanKe
                 return fmt.Errorf("ScanRangeReverseB [%v,%v) failed as binding is not yet open", start, end)
         }</span>
 
-        <span class="cov7" title="207">iter := b.db.NewIter(&amp;pebble.IterOptions{
+        <span class="cov7" title="213">iter := b.db.NewIter(&amp;pebble.IterOptions{
                 LowerBound: start,
                 UpperBound: end,
         })
-        for iter.Last(); iter.Valid(); iter.Prev() </span><span class="cov7" title="213">{
+        for iter.Last(); iter.Valid(); iter.Prev() </span><span class="cov7" title="219">{
                 key := make([]byte, len(iter.Key()))
                 val := make([]byte, len(iter.Value()))
                 copy(key, iter.Key())
                 copy(val, iter.Value())
-                if !callback(key, val) </span><span class="cov7" title="197">{
+                if !callback(key, val) </span><span class="cov7" title="203">{
                         break</span>
                 }
         }
-        <span class="cov7" title="207">return iter.Close()</span>
+        <span class="cov7" title="213">return iter.Close()</span>
 }
 
 // KeyUpperBound implements the [api.Api] interface.
