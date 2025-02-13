@@ -111,7 +111,11 @@ func (b *RaftBinding) Open(cfg *config.Config, com comapi.Api) error {
 	}
 	switch v := cfg.Services.State.Opts["snapshotThreshold"].(type) {
 	case int:
-		config.SnapshotThreshold = uint64(v)
+		if v < 0 {
+			return fmt.Errorf("snapshotThreshold must be a positive integer")
+		} else {
+			config.SnapshotThreshold = uint64(v)
+		}
 	}
 
 	// Increase commit timeout to reduce rate of periodic AppendEntries RPCs to

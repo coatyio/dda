@@ -465,7 +465,12 @@ func (b *Mqtt5Binding) getClientConfig(cfg *config.Config, connackChan chan<- *p
 
 	switch v := comCfg.Opts["keepAlive"].(type) {
 	case int:
-		clientConfig.KeepAlive = uint16(v)
+		if v < 0 {
+			return nil, fmt.Errorf("keepAlive must be a positive integer")
+		} else {
+			// #nosec G115
+			clientConfig.KeepAlive = uint16(v)
+		}
 	default:
 		clientConfig.KeepAlive = 30
 	}

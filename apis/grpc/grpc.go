@@ -692,6 +692,7 @@ func (s *grpcServer) ObserveStateChange(p *state.ObserveStateChangeParams, strea
 				// End stream if channel has been closed.
 				return nil
 			}
+			// #nosec G115
 			if err := stream.Send(&state.Input{Op: state.InputOperation(in.Op), Key: in.Key, Value: in.Value}); err != nil {
 				// Do not return err, but keep stream alive for further transmissions.
 				plog.Println(err)
